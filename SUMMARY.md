@@ -45,6 +45,10 @@
 - [第 33 章 升级流程与 Arch News](03-Arch-Linux/33-升级流程与-Arch-News.md)
 - [第 34 章 常见故障处理](03-Arch-Linux/34-常见故障处理.md)
 - [第 35 章 WSL 特有问题](03-Arch-Linux/35-WSL-特有问题.md)
+- [第 36 章 启动深讲：内核、initramfs 与引导器](03-Arch-Linux/36-启动深讲.md)
+- [第 37 章 安装准备与分区](03-Arch-Linux/37-安装准备与分区.md)
+- [第 38 章 pacstrap、chroot 与引导器](03-Arch-Linux/38-pacstrap-chroot-与引导器.md)
+- [第 39 章 安装后配置与进阶](03-Arch-Linux/39-安装后配置与进阶.md)
 
 ## 00 导论
 

@@ -5,7 +5,7 @@ AUR（Arch User Repository）是用户提交的 `PKGBUILD` 集合，不是二进
 > 本章目标：能安全地手动从 AUR 构建包，读懂更新差异，并在理解风险的前提下使用 AUR 助手。
 > 对应 Wiki：[Arch User Repository](https://wiki.archlinux.org/title/Arch_User_Repository)、[AUR helpers](https://wiki.archlinux.org/title/AUR_helpers)、[Makepkg](https://wiki.archlinux.org/title/Makepkg)
 
-## 3.1 AUR 是什么，不是什么
+## AUR 是什么，不是什么
 
 | 维度     | 官方仓库         | AUR                                    |
 | -------- | ---------------- | -------------------------------------- |
@@ -17,7 +17,7 @@ AUR（Arch User Repository）是用户提交的 `PKGBUILD` 集合，不是二进
 
 AUR 页面上的“包”只是构建脚本的入口。构建参数见 [第 30 章 makepkg 工作流](30-makepkg-工作流.md)，变量语法见 [第 31 章 PKGBUILD 逐行详解](31-PKGBUILD-逐行详解.md)。
 
-## 3.2 标准手动流程
+## 标准手动流程
 
 准备工具（`base-devel` 与 `git` 是前提）：
 
@@ -44,7 +44,7 @@ makepkg -si
 
 若 AUR 包依赖另一个 AUR 包，`-s` 无法自动解决。先构建并安装依赖，再构建目标包；或使用助手处理依赖树。
 
-## 3.3 安全审查清单
+## 安全审查清单
 
 AUR 没有统一的代码审计，恶意 PKGBUILD 可以在构建时执行任意命令。
 
@@ -65,7 +65,7 @@ AUR 没有统一的代码审计，恶意 PKGBUILD 可以在构建时执行任意
 - 不要盲目使用 `--noconfirm`。它跳过确认，不会替你审查脚本。
 - 不把 AUR 包当作官方安全更新；关键系统组件优先找官方仓库替代品。
 
-## 3.4 AUR 助手：paru 与 yay
+## AUR 助手：paru 与 yay
 
 助手自动完成搜索、克隆、依赖解析、构建和升级，但它们**仍然执行 PKGBUILD**，不会让包变安全。
 
@@ -95,7 +95,7 @@ makepkg -si
 
 助手在升级时通常会展示 `PKGBUILD` 差异。不要一路回车；看到来源变化、新增下载命令或校验和被改成 `SKIP`，先停下来。`--noconfirm` 会让这类确认消失，不适合日常升级。
 
-## 3.5 升级、soname 变化与重建
+## 升级、soname 变化与重建
 
 手动更新：
 
@@ -126,7 +126,7 @@ makepkg -f -si
 
 助手用户可用 `paru -Sua` 或 `yay -Sua` 批量升级，但升级后仍要检查 `pacman -Qm` 和实际运行结果。
 
-## 3.6 升级失败与日常维护
+## 升级失败与日常维护
 
 AUR 包构建失败时，先看 `makepkg` 输出的第一条 `ERROR`；再读 AUR 页面评论，确认是否已有上游或依赖问题。随后检查依赖是否改名、是否需要先重建，清理旧 `src/` 后重试；仍失败时核对上游发布说明与 `PKGBUILD` 的版本、校验和。
 

@@ -5,7 +5,7 @@ Arch 是滚动发行版，升级不是“偶尔执行一次”的动作，而是
 > 本章目标：能按固定流程完成一次安全升级，读懂 pacman 的关键输出，并正确处理 `.pacnew` 与升级后的 AUR 重建。
 > 对应 Wiki：[System maintenance](https://wiki.archlinux.org/title/System_maintenance)、[Arch News](https://archlinux.org/news/)、[Pacman#Pacnew and Pacsave files](https://wiki.archlinux.org/title/Pacman#Pacnew_and_Pacsave_files)
 
-## 4.1 升级前：先看、再备份、后执行
+## 升级前：先看、再备份、后执行
 
 升级前的检查应形成习惯，而不是凭记忆。
 
@@ -32,7 +32,7 @@ pacman -Qu          # 只对比本地数据库与已同步的仓库索引
 
 Arch News 要重点看标题中的包名与“manual intervention”字样。新闻可能要求先升级某个包、修改配置、重建模块或重启服务；忽略它，`pacman -Syu` 本身不会提醒你。
 
-## 4.2 执行升级并阅读输出
+## 执行升级并阅读输出
 
 ```bash
 sudo pacman -Syu
@@ -52,7 +52,7 @@ sudo pacman -Syu
 
 `-Syu` 中途不要关机、不要关闭 WSL 终端，也不要在另一个终端执行 pacman。事务被中断可能留下锁文件和半安装状态，处理方式见 [第 34 章 常见故障处理](34-常见故障处理.md)。
 
-## 4.3 升级后：验证而不是假设
+## 升级后：验证而不是假设
 
 ```bash
 systemctl --failed
@@ -84,7 +84,7 @@ uptime -s
 
 若 PID 1 启动时间仍早于升级时间，说明用户空间没有真正重启，systemd 和已升级的库仍可能处于旧状态。
 
-## 4.4 .pacnew 与 .pacsave
+## .pacnew 与 .pacsave
 
 pacman 只管理包自带的文件。若某个文件被标记为配置文件（PKGBUILD 中的 `backup=()`），升级时发现你改过它，pacman 不会覆盖你的版本，而把新版本保存为 `.pacnew`，例如 `/etc/ssh/sshd_config.pacnew`。
 
@@ -100,7 +100,7 @@ sudo DIFFPROG=vimdiff pacdiff # 临时指定对比工具
 
 处理原则：先理解新配置改了什么，再把必要内容合并进现有配置；不要无条件用 `.pacnew` 覆盖，否则可能丢失本机设置。处理完删除对应 `.pacnew`。用 `pacman -Qii 包名` 可以查看该包的备份文件列表与修改状态。
 
-## 4.5 需要手动干预的典型更新
+## 需要手动干预的典型更新
 
 | 场景                     | 表现                             | 处理                                           |
 | ------------------------ | -------------------------------- | ---------------------------------------------- |
@@ -120,7 +120,7 @@ sudo pacman -Su
 
 > **注意**：这是 Wiki 明确说明的例外，不是日常做法。执行后必须立即用 `pacman -Su` 完成全系统升级，不能停在“只更新了 keyring”的状态。
 
-## 4.6 升级后的 AUR 重建
+## 升级后的 AUR 重建
 
 官方仓库升级后，AUR 包不会自动跟进。列出非官方来源包并检查链接：
 

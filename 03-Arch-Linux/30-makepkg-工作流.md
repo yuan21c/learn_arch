@@ -5,7 +5,7 @@
 > 本章目标：能独立完成一次从 PKGBUILD 到 `.pkg.tar.zst` 的构建，并解释构建目录、依赖安装和安装产物的去向。
 > 对应 Wiki：[Makepkg](https://wiki.archlinux.org/title/Makepkg)、[Creating packages](https://wiki.archlinux.org/title/Creating_packages)
 
-## 1.1 makepkg 与 pacman 的分工
+## makepkg 与 pacman 的分工
 
 两者解决的是不同阶段的问题，不要混用。
 
@@ -36,7 +36,7 @@ sudo pacman -S --needed base-devel git namcap
 grep -E '^(CFLAGS|MAKEFLAGS|PKGEXT|PKGDEST|SRCDEST)=' /etc/makepkg.conf
 ```
 
-## 1.2 三个目录：$startdir、$srcdir、$pkgdir
+## 三个目录：$startdir、$srcdir、$pkgdir
 
 PKGBUILD 里的路径几乎都围绕这三个变量展开。
 
@@ -59,7 +59,7 @@ ls -la pkg/usr/bin/
 
 `-o` 对应 `--nobuild`：完成源码准备后停止。它适合检查 `source` 路径是否正确，而不必反复编译。
 
-## 1.3 一次完整构建发生了什么
+## 一次完整构建发生了什么
 
 `makepkg` 的顺序是固定的，排查构建失败时按这个顺序定位。
 
@@ -76,7 +76,7 @@ ls -la pkg/usr/bin/
 
 `build()` 和 `check()` 以普通用户身份运行；`package()` 在 `fakeroot` 环境中运行，使包内文件记录为 `root:root`，但不需要真正的 root 权限。`makepkg` 自身拒绝以 root 运行，这是有意的保护。
 
-## 1.4 常用参数
+## 常用参数
 
 | 参数                | 作用                                  | 典型场景         |
 | ------------------- | ------------------------------------- | ---------------- |
@@ -99,7 +99,7 @@ makepkg --printsrcinfo > .SRCINFO
 
 `-s` 只处理官方仓库里的依赖。若 `depends` 指向 AUR 包，`makepkg` 无法自动解决，必须先把那个 AUR 包构建并安装，再回来构建当前包。
 
-## 1.5 产物、安装与卸载
+## 产物、安装与卸载
 
 默认产物文件名由四段组成：
 
@@ -125,7 +125,7 @@ sudo pacman -Rns hello-arch
 
 `-i` 只是把上面的 `pacman -U` 自动化，不会把包加入任何仓库。要让别的机器也能安装，需要分发包文件，或建立本地仓库。
 
-## 1.6 构建失败的常见入口
+## 构建失败的常见入口
 
 | 现象                                                       | 先检查                               |
 | ---------------------------------------------------------- | ------------------------------------ |

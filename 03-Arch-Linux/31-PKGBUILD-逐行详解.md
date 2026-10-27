@@ -5,7 +5,7 @@
 > 本章目标：能读懂并写出结构完整的 PKGBUILD，分清各类依赖与元数据，并知道每个字段出错时会发生什么。
 > 对应 Wiki：[PKGBUILD](https://wiki.archlinux.org/title/PKGBUILD)、[Makepkg](https://wiki.archlinux.org/title/Makepkg)、[Creating packages](https://wiki.archlinux.org/title/Creating_packages)
 
-## 2.1 元数据变量
+## 元数据变量
 
 | 变量           | 作用              | 要点                                                   |
 | -------------- | ----------------- | ------------------------------------------------------ |
@@ -30,7 +30,7 @@
 
 `pkgver`、`pkgrel`、`epoch` 共同决定版本比较结果。例如 `epoch=1`、`pkgver=2.0.1`、`pkgrel=3` 的完整版本是 `1:2.0.1-3`：先比 epoch，再比版本，最后比 pkgrel。
 
-## 2.2 依赖与包关系
+## 依赖与包关系
 
 四类依赖的边界：`depends` 在运行时必须存在；`makedepends` 只在构建时需要；`checkdepends` 只供 `check()` 使用；`optdepends` 不会被自动安装，仅在 `pacman -Si` 和安装提示中显示。
 
@@ -45,7 +45,7 @@ replaces=('old-name')
 
 这三项不会自动删除文件，最终仍由 `pacman` 在事务中处理。
 
-## 2.3 source、校验和与签名
+## source、校验和与签名
 
 `source` 数组中的每一项都要在 `sha256sums` 中有对应项，顺序一致。本地文件名相对于 PKGBUILD 所在目录；重命名语法为 `本地名::URL`。
 
@@ -57,7 +57,7 @@ updpkgsums          # pacman-contrib 提供，自动重算并写回
 
 正式包不应保留 `SKIP`。上游若有 `.sig` 或 `.asc`，把它加入 `source`，并在 `validpgpkeys` 填完整 40 位指纹；只填密钥 ID 或短指纹不够。
 
-## 2.4 四个函数与执行顺序
+## 四个函数与执行顺序
 
 | 函数        | 是否必需 | 作用                     | 运行环境   |
 | ----------- | -------- | ------------------------ | ---------- |
@@ -68,7 +68,7 @@ updpkgsums          # pacman-contrib 提供，自动重算并写回
 
 顺序固定为 `prepare()` → `build()` → `check()` → `package()`。`check()` 失败会中止构建；只想跳过测试时可用 `makepkg --nocheck`，但正式打包不应长期跳过。拆分包用 `package_子包名()`，此时可以不写总 `package()`。
 
-## 2.5 完整可运行示例
+## 完整可运行示例
 
 先准备脚本源文件：
 
@@ -110,7 +110,7 @@ hello-arch
 
 `sha256sums=('SKIP')` 只用于本地练习。正式包应填写真实校验和，发布到 AUR 前也不应保留 `SKIP`。
 
-## 2.6 install -Dm755 与安装路径
+## install -Dm755 与安装路径
 
 `install` 是 coreutils 提供的复制工具：`-D` 自动创建父目录，`-m755` 把权限设为 `rwxr-xr-x`，最后一个参数是目标文件。因此上面的命令会创建 `$pkgdir/usr/bin/`、复制脚本并设为可执行。
 
@@ -118,7 +118,7 @@ hello-arch
 
 > **危险**：不要在 `package()` 里写 `cp hello.sh /usr/bin/`。这会直接修改当前系统，而包内仍为空，卸载时也无法追踪。
 
-## 2.7 检查与生成 .SRCINFO
+## 检查与生成 .SRCINFO
 
 `namcap` 静态检查 PKGBUILD 与构建产物；`.SRCINFO` 是 AUR 展示用的结构化摘要，修改 PKGBUILD 后必须重新生成：
 
@@ -127,7 +127,7 @@ namcap PKGBUILD
 makepkg --printsrcinfo > .SRCINFO
 ```
 
-## 2.8 常见错误
+## 常见错误
 
 | 现象                       | 原因                         | 修复                                        |
 | -------------------------- | ---------------------------- | ------------------------------------------- |
