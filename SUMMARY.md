@@ -50,6 +50,14 @@
 - [第 38 章 pacstrap、chroot 与引导器](03-Arch-Linux/38-pacstrap-chroot-与引导器.md)
 - [第 39 章 安装后配置与进阶](03-Arch-Linux/39-安装后配置与进阶.md)
 
+## 第四篇 应用与服务
+
+- [第 40 章 用 systemd 托管你的应用](04-应用与服务/40-用-systemd-托管你的应用.md)
+- [第 41 章 Web 服务：nginx](04-应用与服务/41-Web-服务-nginx.md)
+- [第 42 章 Web 服务：Apache 与 Caddy](04-应用与服务/42-Web-服务-Apache-与-Caddy.md)
+- [第 43 章 数据库：MySQL/MariaDB](04-应用与服务/43-数据库-MySQL-MariaDB.md)
+- [第 44 章 数据库：PostgreSQL](04-应用与服务/44-数据库-PostgreSQL.md)
+
 ## 附录
 
 - [第 49 章 命令速查表](05-附录/49-命令速查表.md)
