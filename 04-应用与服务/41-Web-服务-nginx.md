@@ -19,17 +19,23 @@ curl -I http://127.0.0.1
 第一次访问看到默认页就说明链路通了。三个要立刻知道的点：
 
 - **Arch 的 nginx 以 `http` 用户运行**，不是 `www-data`（Debian）也不是 `nginx`（RHEL）。文件权限判断要看 `http`。
-- 默认站点根目录是 `/usr/share/nginx/html`，配置在 `/etc/nginx/nginx.conf`。
-- 日志在 `/var/log/nginx/access.log` 与 `error.log`，排障先看后者。
+- 默认站点根目录是 `/usr/share/nginx/html`，主配置在 `/etc/nginx/nginx.conf`。
+- **日志默认走 journald**：Arch 的 nginx 以 `--error-log-path=stderr` 编译，错误进 `journalctl -u nginx`，`/var/log/nginx/error.log` 默认不存在；访问日志同理，除非在配置里显式指定路径。
 
 ## 配置结构：主文件与片段
 
-`/etc/nginx/nginx.conf` 是主文件，分成 `events`（连接处理）与 `http`（HTTP 相关）两大块。Arch 的默认配置在 `http` 块里 include 了 `/etc/nginx/conf.d/*.conf`（以你机器上的实际内容为准），所以**站点配置应该写到 `conf.d/` 下**，而不是改主文件：
+`/etc/nginx/nginx.conf` 是主文件，分成 `events`（连接处理）与 `http`（HTTP 相关）两大块。**Arch 的默认配置只 include 了 `modules.d/*.conf` 与 `mime.types`，并没有 `conf.d`**——所以第一步是自己在 `http` 块末尾加一行：
+
+```nginx
+include /etc/nginx/conf.d/*.conf;
+```
 
 ```bash
 sudo mkdir -p /etc/nginx/conf.d
 sudoedit /etc/nginx/conf.d/site.conf
 ```
+
+漏了这一行，你写进 `conf.d/` 的站点**完全不会被读取**，而 `nginx -t` 依然通过——这是本章最容易踩的坑。
 
 改完先测语法，再让配置生效：
 
@@ -52,6 +58,7 @@ server {
     root /srv/www/example;
     index index.html;
 
+    # 这两行不写就默认进 journald；要落文件就必须自己指定路径
     access_log /var/log/nginx/example.access.log;
     error_log  /var/log/nginx/example.error.log;
 
@@ -109,14 +116,14 @@ proxy_set_header Connection "upgrade";
 
 ## TLS：certbot 与自动续期
 
-公网域名 + 可达 80 端口时，用 certbot 一条命令搞定（环境：VM 或公网主机；WSL 本地只能自签）：
+公网域名 + 可达 80 端口时，用 certbot 一条命令搞定（环境：VM/公网主机；WSL 里的本地域名要拿公网证书只能靠 DNS-01 验证或端口转发，通常直接自签）：
 
 ```bash
 sudo pacman -S certbot certbot-nginx
 sudo certbot --nginx -d app.example.com
 ```
 
-certbot 会改写你的 server 块（加 `listen 443 ssl`、证书路径、80→443 跳转）。续期由 `certbot.timer` 负责，检查它是否在跑：
+certbot 会改写你的 server 块（加 `listen 443 ssl`、证书路径、80→443 跳转）。续期由包自带的 `certbot-renew.timer` 负责（不是 `certbot.timer`），检查它是否在跑：
 
 ```bash
 systemctl list-timers | grep certbot
@@ -129,8 +136,8 @@ sudo certbot renew --dry-run    # 演练续期，不真的换证书
 
 ```bash
 sudo nginx -t                                  # 语法/路径错误
-sudo tail -50 /var/log/nginx/error.log         # 启动失败、502、403 的根因
-sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码、耗时
+sudo journalctl -u nginx -b --no-pager | tail -50   # 默认日志位置（启动失败、502、403 的根因）
+sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码、耗时（需显式配了 access_log）
 ```
 
 对照表：
@@ -148,19 +155,19 @@ sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码�
 ## 小结
 
 - 装完先 `enable --now`，用 `curl -I` 验证；Arch 的 nginx 以 `http` 用户运行。
-- 站点配置放 `/etc/nginx/conf.d/*.conf`；改完 `nginx -t` → `reload`，不要直接 `restart`。
+- Arch 默认没有 `conf.d`：先在 `http {}` 里加 `include /etc/nginx/conf.d/*.conf;`；改完 `nginx -t` → `reload`。
 - 静态站用 `try_files`；SPA 的最后一项换成 `/index.html`。
 - 反代的四个头（`Host`、`X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`）必须有；上传要调 `client_max_body_size`。
-- TLS 交给 certbot，续期靠 `certbot.timer`，用 `--dry-run` 验证。
-- 排障三件套：`nginx -t`、`error.log`、`access.log`；`502` 先查后端与地址。
+- TLS 交给 certbot，续期靠 `certbot-renew.timer`，用 `--dry-run` 验证。
+- 排障三件套：`nginx -t`、`journalctl -u nginx`、`access.log`；`502` 先查后端与地址。
 
 ## 练习
 
 1. 静态站（环境：WSL）：在 `/srv/www/lab` 放一个 `index.html`，写 `conf.d/lab.conf`，用 `curl -I` 与浏览器各访问一次；故意把目录权限改成 `700`，观察 `403` 并从 error.log 里找到证据。
 2. SPA 路由（环境：WSL）：把 `try_files` 改成 `/index.html`，用 `curl -I http://127.0.0.1/some/route` 验证返回 200 而不是 404。
-3. 反向代理（环境：WSL）：用第 40 章的 `demo.service` 或 `python3 -m http.server 8000` 起后端，配反代后用 `curl -H 'Host: app.local' http://127.0.0.1/` 验证；再删掉 `proxy_set_header Host`，对比后端看到的头。
+3. 反向代理（环境：WSL）：用第 40 章的 `demo.service` 或 `python3 -m http.server 8000` 起后端，配反代后用 `curl -H 'Host: app.example.local' http://127.0.0.1/` 验证（Host 必须与 `server_name` 一致，否则会落到默认站点）；再删掉 `proxy_set_header Host`，对比后端看到的头。
 4. 413 复现（环境：WSL）：用 `curl -F file=@大文件` 上传超过 1 MB 的文件触发 `413`，调大 `client_max_body_size` 后重试成功。
-5. 502 排查（环境：WSL）：停掉后端，访问页面记录 `502`；从 `error.log` 找出 `connect() failed` 的具体地址，再改回正确端口。
+5. 502 排查（环境：WSL）：停掉后端，访问页面记录 `502`；从 `journalctl -u nginx`（或在 server 里配了 `error_log` 后从该文件）找出 `connect() failed` 的具体地址，再改回正确端口。
 6. 日志分析（环境：WSL）：用 `ab` 或循环 `curl` 产生 50 个请求，从 `access.log` 统计状态码分布与平均耗时（`awk` 一行即可）。
 
 ## 自检

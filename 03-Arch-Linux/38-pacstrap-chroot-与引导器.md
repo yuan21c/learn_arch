@@ -124,7 +124,7 @@ initrd  /initramfs-linux.img
 options root=UUID=<根分区UUID> rw
 ```
 
-路径相对 ESP 根目录，`<根分区UUID>` 要替换成 `blkid` 输出的实际值。安装微码时 `initrd` 写两行，微码在前。`root=` 写错会停在 `VFS: Unable to mount root fs`，可用 `bootctl status` 验证。
+路径相对 ESP 根目录，`<根分区UUID>` 要替换成 `blkid` 输出的实际值。微码二选一：`HOOKS` 里有 `microcode`（默认）就不要再加微码 `initrd`；只有走独立 initrd 方案时才写两行、微码在前（第 36 章）。`root=` 写错会停在 `VFS: Unable to mount root fs`，可用 `bootctl status` 验证。
 
 最后在 chroot 中执行 `mkinitcpio -P`，按 `/etc/mkinitcpio.d/` 的预设重建全部 initramfs。安装内核包时通常已自动生成，但修改 `HOOKS`/`MODULES`、添加微码或发现 `/boot` 缺少 initramfs 时必须重跑。
 

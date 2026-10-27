@@ -16,7 +16,7 @@ sudo systemctl enable --now mariadb
 systemctl status mariadb
 ```
 
-`mariadb-install-db` 只跑一次，作用是在 `/var/lib/mysql` 建立系统表（`mysql`、`performance_schema` 等）。**跳过它会得到 `Can't connect to local server through socket`**——服务进程起来了，但数据目录是空的，等于没有数据库。
+`mariadb-install-db` 只跑一次，作用是在 `/var/lib/mysql` 建立系统表（`mysql`、`performance_schema` 等）。**跳过它，`mariadbd` 会因为找不到权限表而直接启动失败**：`systemctl status mariadb` 显示 `failed`，客户端报 `Can't connect to local server through socket`。看到这个报错先确认初始化有没有做，再怀疑 socket 路径。
 
 初始化后立刻做一次安全初始化：
 
@@ -59,7 +59,7 @@ FLUSH PRIVILEGES;
 
 ## 连接：四类「连不上」
 
-应用连不上数据库时，按这四层查，顺序与第 14 章的网络排查一致：
+应用连不上数据库时，按这四层查（第 14 章的六层模型在这里收窄成「服务/监听/认证/库」四层）：
 
 | 层 | 现象 | 检查 |
 | --- | --- | --- |
@@ -68,7 +68,14 @@ FLUSH PRIVILEGES;
 | 认证 | `Access denied for user` | 账号的 `host` 部分是否匹配来源；密码是否正确 |
 | 库 | `Unknown database` | 库名拼写、字符集、是否连到了另一个实例 |
 
-默认只监听本机（`bind-address` 以 `/etc/my.cnf.d/server.cnf` 为准）。要开远程访问必须**同时**改 `bind-address`、建带来源的账号、放行防火墙（第 46 章），三件事缺一不可。
+**Arch 的默认配置并不限制监听地址**：`/etc/my.cnf.d/server.cnf` 里的 `bind-address` 是注释掉的，服务默认监听所有接口。只给本机用就必须显式加上：
+
+```ini
+# /etc/my.cnf.d/server.cnf 的 [mariadb] 段
+bind-address = 127.0.0.1
+```
+
+要开远程访问则反过来：保留更宽的监听、建带来源的账号、放行防火墙（第 46 章），三件事缺一不可。第 46 章「把数据库绑回环」的建议就落在这行配置上。
 
 应用侧的连接串大致是：
 
@@ -127,7 +134,7 @@ sudo journalctl -u mariadb -b --no-pager | tail -30
 3. 建库建号（环境：WSL）：按正文四条原则建 `app` 库与 `app@localhost` 账号，用 `mariadb -u app -p app -e 'SELECT 1'` 验证；再试 `mariadb -u app -p -h 127.0.0.1` 观察是否可连。
 4. 字符集验证（环境：WSL）：插入一条含 emoji 的记录，用 `SHOW VARIABLES LIKE 'character_set%'` 证明是 `utf8mb4`。
 5. 备份恢复（环境：WSL）：造 100 行数据 → `mariadb-dump` → 删除库 → 重建空库 → 导入 → 校验行数与内容一致；再试一次不带 `--single-transaction` 的导出，说明差别。
-6. 四层排查（环境：WSL）：停服务、改 `bind-address`（只读观察配置）、建一个 host 不匹配的账号，分别复现四类错误里的三类，并从日志里找到对应行。
+6. 四层排查（环境：WSL）：停服务复现 `Connection refused`；用 `ss -tlnp` 确认当前监听地址并写出应加的 `bind-address` 配置行（不实际改）；建一个 host 不匹配的账号复现 `Access denied`，从日志里找到对应行。
 
 ## 自检
 
