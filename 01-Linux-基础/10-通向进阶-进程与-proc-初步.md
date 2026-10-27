@@ -25,7 +25,7 @@ wait                      # 等待后台进程结束
 ls -d /proc/$pid          # No such file or directory：进程已退出，目录随之消失
 ```
 
-进程由父进程 `fork` 出来、再由 `exec` 装载程序成新映像——shell 执行你敲的每条命令时，底下都在重复这两个动作。进程退出后若父进程还没「收尸」，会短暂留下僵尸态。创建、回收、`ps`/`top` 的完整用法、信号与优先级，全部留给第二篇第 11 章；本章只要求建立三条直觉：进程是运行时实体、它有编号、它会消失。
+进程由父进程 `fork` 出来、再由 `exec` 装载程序成新映像——shell 执行你敲的**外部命令**时，底下都在重复这两个动作（builtin、函数、alias 不新建进程，下一节细讲）。进程退出后若父进程还没「收尸」，会短暂留下僵尸态。创建、回收、`ps`/`top` 的完整用法、信号与优先级，全部留给第二篇第 11 章；本章只要求建立三条直觉：进程是运行时实体、它有编号、它会消失。
 
 ## 系统调用：程序请内核干活的门
 
@@ -35,7 +35,7 @@ ls -d /proc/$pid          # No such file or directory：进程已退出，目录
 - **libc** 把 syscall 包装成普通 C 函数，`man 2 open`、`man 2 read` 的「2」正是「手册第 2 节 = 系统调用」（第 2 章讲过 1 是用户命令、5 是文件格式、7 是综述）；
 - **程序**调 libc 函数，由 libc 用 `syscall` 指令陷入内核，用户程序自己从不直接碰硬件。
 
-这也反照出第 2 章 builtin 与外部程序的分界：`cd` 只改 shell 自己的内存变量，一次系统调用都不需要；而外部程序 `pwd` 必须向内核询问当前目录——凡是「问内核要资源」的动作，都是系统调用。观察它的显微镜是 `strace`（`strace 命令` 打印每个 syscall 的参数与返回值，`strace -c 命令` 做统计汇总）。系统通常不预装它，Arch 下 `pacman -S strace` 装好再用，用法以 [Strace](https://wiki.archlinux.org/title/Strace) 为准。
+这也反照出第 2 章 builtin 与外部程序的分界：分界在于**是否新建进程**，而非是否陷入内核。`cd` 是 builtin，不 fork/exec，但它改的是 shell 进程自身的工作目录，必须调用 `chdir(2)`；外部程序 `/usr/bin/pwd` 则调用 `getcwd(2)` 向内核询问当前目录。builtin 省掉的是进程创建，不是系统调用。观察它的显微镜是 `strace`（`strace 命令` 打印每个 syscall 的参数与返回值，`strace -c 命令` 做统计汇总）。系统通常不预装它，Arch 下 `pacman -S strace` 装好再用，用法以 [Strace](https://wiki.archlinux.org/title/Strace) 为准。
 
 ## /proc：内核开的一扇窗
 
@@ -109,7 +109,7 @@ MemAvailable:    8304120 kB
 
 2. 进程生灭完整观察（环境：WSL）：`sleep 10 & pid=$!`，趁活着依次执行 `ls -d /proc/$pid`、`cat /proc/$pid/comm`、`tr '\0' ' ' < /proc/$pid/cmdline`（解释为什么命令行要过 `tr`），再 `wait` 后重复 `ls -d /proc/$pid` 记录报错。
 3. 整机仪表解读（环境：WSL，只读）：`cat /proc/uptime` 并换算成小时，对照 `uptime -p`；`cat /proc/loadavg` 读出三个负载数字与 `运行中/总线程数`，和 `grep -c ^processor /proc/cpuinfo` 的核数对比，判断此刻系统是否排队；`head -5 /proc/meminfo` 说清 `MemFree` 与 `MemAvailable` 的差别。
-4. 系统调用的边界（环境：WSL）：`type cd`、`command -v pwd` 判断两者形态，回答「哪个动作需要向内核要资源」；已安装 `strace` 的环境（Arch：`pacman -S strace`，本机未预装）可选做 `strace -c ls > /dev/null 2> counts.txt; head -5 counts.txt`，从统计里找出 `ls` 调用最多的 syscall。
+4. 系统调用的边界（环境：WSL）：`type cd`、`type -a pwd` 判断两者形态（注意 bash/zsh 的 `pwd` 也是 builtin，`type -a` 会同时列出 builtin 与 `/usr/bin/pwd`），回答「两个动作各自要不要新建进程、要不要陷入内核」；已安装 `strace` 的环境（Arch：`pacman -S strace`，本机未预装）可选做 `strace -c ls > /dev/null 2> counts.txt; head -5 counts.txt`，从统计里找出 `ls` 调用最多的 syscall。
 
 ## 自检
 
