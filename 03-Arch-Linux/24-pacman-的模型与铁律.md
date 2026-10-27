@@ -69,7 +69,7 @@ Include = /etc/pacman.d/mirrorlist
 
 当同名包出现在多个仓库时，pacman 选择**配置文件中先出现的仓库**，不会跨仓库比较版本。单个仓库内部通常只有一个版本，具体下载地址由 `mirrorlist` 中的镜像决定。
 
-官方仓库（`core`、`extra`）由 Arch 团队构建并签名。AUR 不是仓库：它没有同步数据库、没有二进制包，`pacman -Ss` 搜不到，`pacman -Qm` 会把从 AUR 或本地安装的包列为「外来包」。AUR 的使用与风险见第 32 章。
+官方仓库（`core`、`extra`）由 Arch 团队构建并签名。AUR 不是仓库：它没有同步数据库、没有二进制包，`pacman -Ss` 搜不到，`pacman -Qm` 会把从 AUR 或本地安装的包列为「外来包」。AUR 的使用与风险见 [第 32 章 AUR 机制与助手](32-AUR-机制与助手.md)。
 
 ## 部分升级为什么危险
 

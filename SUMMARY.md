@@ -39,6 +39,12 @@
 - [第 27 章 systemd 单元与日志](03-Arch-Linux/27-systemd-单元与日志.md)
 - [第 28 章 service 与 timer 实战](03-Arch-Linux/28-service-与-timer-实战.md)
 - [第 29 章 文件层次与包所有权](03-Arch-Linux/29-文件层次与包所有权.md)
+- [第 30 章 makepkg 工作流](03-Arch-Linux/30-makepkg-工作流.md)
+- [第 31 章 PKGBUILD 逐行详解](03-Arch-Linux/31-PKGBUILD-逐行详解.md)
+- [第 32 章 AUR 机制与助手](03-Arch-Linux/32-AUR-机制与助手.md)
+- [第 33 章 升级流程与 Arch News](03-Arch-Linux/33-升级流程与-Arch-News.md)
+- [第 34 章 常见故障处理](03-Arch-Linux/34-常见故障处理.md)
+- [第 35 章 WSL 特有问题](03-Arch-Linux/35-WSL-特有问题.md)
 
 ## 00 导论
 
