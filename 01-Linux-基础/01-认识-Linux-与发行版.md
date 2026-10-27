@@ -57,13 +57,13 @@ PRETTY_NAME="Arch Linux"
 
 ## 主流发行版一览
 
-| 家族       | 代表发行版          | 包管理       | 发布模式                   | 定位一句话                 |
-| ---------- | ------------------- | ------------ | -------------------------- | -------------------------- |
-| Debian 系  | Debian、Ubuntu      | APT          | 固定周期 + LTS             | 生态大，默认配置完整       |
-| Red Hat 系 | Fedora、RHEL、Rocky | DNF          | Fedora 半年、RHEL 固定     | 企业标准，新特性试验田     |
-| Arch 系    | Arch、Manjaro       | pacman       | 滚动更新                   | 极简基础系统，用户自己组装 |
-| SUSE 系    | openSUSE、SLES      | zypper       | Leap 固定、Tumbleweed 滚动 | 自带管理工具链             |
-| 轻量系     | Alpine、Gentoo      | apk、portage | 滚动更新                   | 容器镜像、源码编译         |
+| 家族       | 代表发行版          | 包管理       | 发布模式                     | 定位一句话                 |
+| ---------- | ------------------- | ------------ | ---------------------------- | -------------------------- |
+| Debian 系  | Debian、Ubuntu      | APT          | 固定周期 + LTS               | 生态大，默认配置完整       |
+| Red Hat 系 | Fedora、RHEL、Rocky | DNF          | Fedora 半年、RHEL 固定       | 企业标准，新特性试验田     |
+| Arch 系    | Arch、Manjaro       | pacman       | 滚动更新                     | 极简基础系统，用户自己组装 |
+| SUSE 系    | openSUSE、SLES      | zypper       | Leap 固定、Tumbleweed 滚动   | 自带管理工具链             |
+| 轻量系     | Alpine、Gentoo      | apk、portage | Alpine 固定周期、Gentoo 滚动 | 容器镜像、源码编译         |
 
 这张表只描述定位，不评价优劣。选择的实质是：接受多少默认值、要多新的软件、需要社区还是商业支持。无论选谁，本书第一、二篇讲的命令与概念都通用——发行版差异是「默认值」的差异，不是「底层原理」的差异。
 
