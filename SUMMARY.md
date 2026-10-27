@@ -33,6 +33,12 @@
 - [第 21 章 首次启动与 systemd](03-Arch-Linux/21-首次启动与-systemd.md)
 - [第 22 章 Arch 的用户、sudo 与默认 shell](03-Arch-Linux/22-用户-sudo-与默认-shell.md)
 - [第 23 章 镜像源、pacman 配置与备份](03-Arch-Linux/23-镜像源-pacman-配置与备份.md)
+- [第 24 章 pacman 的模型与铁律](03-Arch-Linux/24-pacman-的模型与铁律.md)
+- [第 25 章 安装、卸载与查询](03-Arch-Linux/25-安装卸载与查询.md)
+- [第 26 章 缓存、降级与密钥环](03-Arch-Linux/26-缓存降级与密钥环.md)
+- [第 27 章 systemd 单元与日志](03-Arch-Linux/27-systemd-单元与日志.md)
+- [第 28 章 service 与 timer 实战](03-Arch-Linux/28-service-与-timer-实战.md)
+- [第 29 章 文件层次与包所有权](03-Arch-Linux/29-文件层次与包所有权.md)
 
 ## 00 导论
 
