@@ -7,7 +7,7 @@
 
 ## 程序与进程：静态与运行时
 
-程序是磁盘上的文件——第 5 章讲过，它躺在 inode 的数据块里，`ls -l` 看到的就是它。进程则是它**运行起来的实例**：同一个 `sleep` 程序可以同时存在多个进程，各自领一个编号——进程 ID（PID）。每个进程还记着父进程（PPid），整棵进程树的树根是 PID 1（init），本机实测由 `systemd` 担任（环境：WSL）：
+程序是磁盘上的文件——第 5 章讲过，它躺在 inode 的数据块里，`ls -l` 看到的就是它。进程则是它**运行起来的实例**：同一个 `sleep` 程序可以同时存在多个进程，各自领一个编号——进程 ID（PID）。每个进程还记着父进程（PPID），整棵进程树的树根是 PID 1——它叫 init，现代发行版普遍由 `systemd` 担任（它就是 1 号进程/初始化系统，实操见第 26 章）。现场观察（环境：WSL）：
 
 ```text
 $ cat /proc/1/comm
@@ -35,7 +35,7 @@ ls -d /proc/$pid          # No such file or directory：进程已退出，目录
 - **libc** 把 syscall 包装成普通 C 函数，`man 2 open`、`man 2 read` 的「2」正是「手册第 2 节 = 系统调用」（第 2 章讲过 1 是用户命令、5 是文件格式、7 是综述）；
 - **程序**调 libc 函数，由 libc 用 `syscall` 指令陷入内核，用户程序自己从不直接碰硬件。
 
-这也反照出第 2 章 builtin 与外部程序的分界：分界在于**是否新建进程**，而非是否陷入内核。`cd` 是 builtin，不 fork/exec，但它改的是 shell 进程自身的工作目录，必须调用 `chdir(2)`；外部程序 `/usr/bin/pwd` 则调用 `getcwd(2)` 向内核询问当前目录。builtin 省掉的是进程创建，不是系统调用。观察它的显微镜是 `strace`（`strace 命令` 打印每个 syscall 的参数与返回值，`strace -c 命令` 做统计汇总）。系统通常不预装它，Arch 下 `pacman -S strace` 装好再用，用法以 [Strace](https://wiki.archlinux.org/title/Strace) 为准。
+这也反照出第 2 章 builtin 与外部程序的分界：分界在于**是否新建进程**，而非是否陷入内核。`cd` 是 builtin，不 fork/exec，但它改的是 shell 进程自身的工作目录，必须调用 `chdir(2)`；外部程序 `/usr/bin/pwd` 则调用 `getcwd(2)` 向内核询问当前目录。builtin 省掉的是进程创建，不是系统调用。观察它的显微镜是 `strace`（`strace 命令` 打印每个 syscall 的参数与返回值，`strace -c 命令` 做统计汇总）。系统通常不预装它，用发行版包管理器装好再用（Arch：`pacman -S strace`；Debian/Ubuntu：`apt install strace`），用法以 [Strace](https://wiki.archlinux.org/title/Strace) 为准。
 
 ## /proc：内核开的一扇窗
 
@@ -77,7 +77,7 @@ MemFree:         5122888 kB
 MemAvailable:    8304120 kB
 ```
 
-读法要点：`/proc/uptime` 第一字段是开机秒数，换算约 21.5 小时，与 `uptime -p` 的实测输出 `up 21 hours, 35 minutes` 相互印证；loadavg 三个数字是**可运行任务数**按 1、5、15 分钟的滑动平均，经验判据是看它是否持续超过 CPU 核数（本机 6 核），超过即意味着任务在排队；`MemAvailable` 才是「实际还能给程序用多少」，`MemFree` 只统计完全空闲的部分，两者差额大不等于异常。这些仪表在第 13 章（进程）与第二篇第 16 章（磁盘与存储）会反复回看，先把字段混熟。
+读法要点：`/proc/uptime` 第一字段是开机秒数，换算约 21.5 小时，与 `uptime -p` 的实测输出 `up 21 hours, 35 minutes` 相互印证；loadavg 三个数字是**可运行（R）+ 不可中断（D）**任务数的 1/5/15 分钟指数衰减平均——负载高而 CPU 空闲时，先查 D 状态进程与 IO；经验判据是看它是否持续超过 CPU 核数，超过即意味着任务在排队；`MemAvailable` 才是「实际还能给程序用多少」，`MemFree` 只统计完全空闲的部分，两者差额大不等于异常。这些仪表在第 13 章（进程）与第二篇第 16 章（磁盘与存储）会反复回看，先把字段混熟。
 
 ## 一次 cat 的旅程：把篇一串起来
 
@@ -85,14 +85,14 @@ MemAvailable:    8304120 kB
 
 1. **shell 解析命令**（第 2 章）：`cat` 不是 builtin，于是 shell `fork` 出子进程、`exec` 装载 `/usr/bin/cat`——新进程领到自己的 PID，`/proc/PID` 目录同时出现。
 2. **发起系统调用**：`cat` 调 libc 的 `open("notes.txt", O_RDONLY)`，CPU 陷入内核态。
-3. **内核查权限**（第 6 章）：按文件属主/属组对照进程的 UID 判 rwx——不放行，`open` 就带着 `EACCES` 返回；随后是 `cat` 把这个错误号翻译成 `Permission denied` 打印出来：**错误编号来自内核，文案出自程序**。
+3. **内核查权限**（第 6 章）：对照进程的 UID/GID（含补充组）与 ACL 判 rwx，root 还可凭 CAP_DAC_OVERRIDE 绕过——不放行，`open` 就带着 `EACCES` 返回；随后是 `cat` 把这个错误号翻译成 `Permission denied` 打印出来：**错误编号来自内核，文案出自程序**。
 4. **读文件**（第 5 章）：内核经文件系统解析路径、查 inode、定位数据块，`read` 把内容搬进用户态缓冲区。
 5. **写到输出**（第 4 章）：`write(1, …)` 写向文件描述符 1——默认是终端；你用 `>` 重定向时，fd 1 已被 shell 改指到文件，数据于是落盘。
 6. **退出**：`cat` 返回 EOF 后退出，内核回收内存与文件表，`/proc/PID` 目录随即消失——第 2 步出现、这一步消失，中间就是这个进程的一生。
 
 ## 小结
 
-- 程序是静态文件，进程是带 PID 的运行实例；PPid 串成进程树，PID 1 是树根（本机 systemd），`/proc/PID` 目录随进程生灭。
+- 程序是静态文件，进程是带 PID 的运行实例；PPID 串成进程树（`/proc` 里的字段名写作 `PPid`），PID 1 是树根（本机 systemd），`/proc/PID` 目录随进程生灭。
 - 系统调用是用户态进入内核态的唯一受控入口；libc 包装它，man 第 2 节记录它，`strace` 观察它；builtin 与外部程序的差别也由此解释。
 - `/proc/self` 谁读代表谁；`comm/cmdline/status/cwd/exe` 是单进程档案，`uptime/loadavg/cpuinfo/meminfo` 是整机仪表。
 - 篇一至此收官：命令（2）、文件（3）、文本（4）、文件系统（5）、权限（6）、用户（7）、环境（8）、综合实验（9）全部就位——第 13 章从 `ps`/`top` 与信号开始，把「进程」从概念变成日常操作。

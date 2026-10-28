@@ -51,7 +51,7 @@ PATH 的四个事故多发点：
 - **顺序错**：自装的同名程序排在系统目录前，会遮蔽正版命令；反之排太后则「装了找不到」。
 - **被整体覆盖**：脚本里写 `PATH=/my/tools` 会把系统路径冲掉，后面 `ls` 全部阵亡——正确写法 `PATH=/my/tools:$PATH`。
 - **空条目**：PATH 里出现连续冒号或以冒号结尾，等于把**当前目录**加入查找，恶意同名文件可能被你误执行——生产环境不要留空条目。
-- **sudo 重置 PATH**：`sudo -l` 输出里有 `secure_path=/usr/local/sbin:/usr/local/bin:/usr/bin`——sudo 执行命令时换成这条固定 PATH，你个人目录（如 `~/.local/bin`）里的程序在 `sudo` 下找不到，用绝对路径解决。
+- **sudo 重置 PATH**：`sudo -l` 输出里有 `secure_path=/usr/local/sbin:/usr/local/bin:/usr/bin`——sudo 执行命令时换成这条固定 PATH，你个人目录（如 `~/.local/bin`）里的程序在 `sudo` 下找不到——正确做法是装进 `/usr/local/bin` 这类 secure_path 目录，**不要让 root 去执行用户可写的目录里的程序**。
 
 ## 常见环境问题排查表
 
@@ -63,7 +63,7 @@ PATH 的四个事故多发点：
 | 新装命令不生效            | hash 缓存或 PATH 未刷新       | `hash -r`，或重开 shell              |
 | 脚本里 alias 报 not found | 非交互 shell 默认不展开 alias | `shopt -s expand_aliases`（见下文）  |
 | 子进程读不到变量          | 忘了 `export`                 | `export 变量名`                      |
-| `sudo` 下找不到命令       | `secure_path` 重置            | 改用绝对路径                         |
+| `sudo` 下找不到命令       | `secure_path` 重置            | 装入 `/usr/local/bin` 等 secure_path 目录 |
 | 提示符/中文显示异常       | `PS1`、`LANG` 被启动文件改坏  | 从启动文件顺序排查（下一节）         |
 
 ## shell 启动文件：登录与非登录
@@ -82,7 +82,7 @@ $ env -i HOME=/tmp/e8 bash -i -c 'echo [$PS1]'
 
 - **非交互 shell**（脚本）：默认不读以上任何文件，需要时用 `BASH_ENV` 变量指定一个要先执行的文件（细节以 [Bash](https://wiki.archlinux.org/title/Bash) 为准）。
 
-改了配置怎么生效？两条路：`source 文件`（或等价的 POSIX 写法 `. 文件`）在**当前 shell** 立即执行它（bash 帮助原话 “Execute commands from a file in the current shell”），或开一个新 shell 让启动流程重走一遍。惯例分工：别名、提示符、`PATH` 追加写 `~/.bashrc`；只想要登录时执行一次的放 `~/.bash_profile`。zsh、fish 各有自己的一套启动文件（如 zsh 的 `~/.zshrc`），以对应 Wiki 为准。
+改了配置怎么生效？两条路：`source 文件`（或等价的 POSIX 写法 `. 文件`）在**当前 shell** 立即执行它（bash 帮助原话 “Execute commands from a file in the current shell”），或开一个新 shell 让启动流程重走一遍。启动文件速查：**交互+登录**读 `/etc/profile` → `~/.bash_profile`→`~/.bash_login`→`~/.profile`（首个存在者）→ `~/.bashrc`；**交互+非登录**只读 `~/.bashrc`；**非交互**（脚本）读 `BASH_ENV` 指向的文件，通常没有。`sudo -i`、`su -` 会以目标用户身份**重置整个环境**重走登录流程，`sudo 命令`/`su 用户` 则保留大部分当前变量。系统级入口还有三个：`/etc/environment`（`pam_env` 读取）、`/etc/security/pam_env.conf`、`~/.config/environment.d/*.conf`（systemd 用户会话）。惯例分工：别名、提示符、`PATH` 追加写 `~/.bashrc`；只想要登录时执行一次的放 `~/.bash_profile`。zsh、fish 各有自己的一套启动文件（如 zsh 的 `~/.zshrc`），以对应 Wiki 为准。
 
 ## alias 与提示符
 
@@ -93,7 +93,7 @@ alias 是交互利器：`alias ll='ls -l'` 定义，`alias` 列出全部，`unal
 # 脚本 t1.sh：开头加 shopt -s expand_aliases  → 正常输出 hello（实测）
 ```
 
-交互 shell 默认开启 alias 展开，脚本（非交互）默认关闭：写进脚本要在使用之前加 `shopt -s expand_aliases`。另一条实用结论：名字的解析顺序是 **alias → 函数 → 内置命令 → PATH 文件**，`type cd` 实测输出 `cd is a shell builtin`、`type -a ls` 只列 PATH 文件，各自印证了所处的层级——这也是第 2 章 `cd` 不需要路径的原因。
+交互 shell 默认开启 alias 展开，脚本（非交互）默认关闭：写进脚本要在使用之前加 `shopt -s expand_aliases`。另一条实用结论：名字的解析顺序是 **alias → 函数 → 内置命令 → PATH 文件**，`type cd` 实测输出 `cd is a shell builtin`、`type -a ls` 会先列 alias 再列 PATH 文件（只想看 PATH 用 `command -v ls`），各自印证了所处的层级——这也是第 2 章 `cd` 不需要路径的原因。
 
 提示符由 `PS1` 控制，Arch 的默认样式（`[\u@\h \W]\$ `）不是 bash 出厂值，而是 `/etc/bash.bashrc` 判断后改写的——上面的实测对照正是它在起作用。自定义提示符（颜色、git 分支、时间）写进 `~/.bashrc`，成法见 [Bash/Prompt customization](https://wiki.archlinux.org/title/Bash/Prompt_customization)。
 
