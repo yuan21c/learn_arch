@@ -37,7 +37,7 @@ sudo pacman -Sy --needed archlinux-keyring
 pacstrap -K /mnt base linux linux-firmware
 ```
 
-`-K` 在目标系统初始化空密钥环，避免沿用 Live 环境状态；`/mnt` 必须已挂好根分区；`base` 是最小基础包组，含 pacman 与 systemd；`linux` 是默认内核；`linux-firmware` 提供常见硬件固件。需要网络与编辑器时可一次装完，减少重复进 chroot：
+`-K` 在目标系统初始化空密钥环，避免沿用 Live 环境状态；`/mnt` 必须已挂好根分区；`base` 是最小基础元包（metapackage，依赖一串基础包而非自己含文件），带入 pacman 与 systemd；`linux` 是默认内核；`linux-firmware` 提供常见硬件固件。需要网络与编辑器时可一次装完，减少重复进 chroot：
 
 ```bash
 pacstrap -K /mnt base linux linux-firmware networkmanager sudo vim man-db
@@ -49,7 +49,7 @@ pacstrap -K /mnt base linux linux-firmware networkmanager sudo vim man-db
 ls /mnt /mnt/boot
 ```
 
-`/mnt` 下应出现 `etc`、`usr`、`var`；`/mnt/boot` 应有 `vmlinuz-linux` 与 `initramfs-linux.img`。若 `/mnt/boot` 为空，说明 ESP 没挂上，先回[上一章](43-安装准备与分区.md)修正。
+`/mnt` 下应出现 `etc`、`usr`、`var`；`/mnt/boot` 应有 `vmlinuz-linux` 与 `initramfs-linux.img`。**判断 ESP 是否挂上不要看目录空不空**——未挂载时 `/mnt/boot` 只是根分区上的普通目录，pacstrap 照样把内核写进去，于是「看似正常、引导器却写不进 ESP」。正确判据：`findmnt /mnt/boot` 有独立挂载记录，且 `lsblk -f` 显示该分区 `FSTYPE=vfat`；不满足先回[上一章](43-安装准备与分区.md)修正。
 
 ## 生成 fstab 并进入 chroot
 
@@ -149,9 +149,9 @@ options root=UUID=<根分区UUID> rw
 
 ## 练习
 
-1. 完整执行一次 `pacstrap`，记录安装包数量与磁盘占用。
-2. 分别用 GRUB 和 systemd-boot 安装，比较菜单与 entry 的差异。
-3. 删除 `/boot/initramfs-linux.img` 后重启，记录报错并用 `mkinitcpio -P` 修复。
+1. 完整执行一次 `pacstrap`，记录安装包数量与磁盘占用（环境：Live ISO（VM）；预期：事务结束无 error）。
+2. 分别用 GRUB 和 systemd-boot 安装，比较菜单与 entry 的差异（环境：VM；预期：两套菜单都能列出内核）。
+3. 删 initramfs 恢复演练（环境：VM，**不可逆操作**）：前置三步——先给虚拟机做快照、`ls /boot` 确认还有 `initramfs-linux-fallback.img` 或可从 Live 重建、准备好 Live ISO；然后删除 `/boot/initramfs-linux.img` 重启，记录报错（预期：initramfs 缺失类报错、停在引导阶段）；用 Live ISO 挂载根并 `arch-chroot` 进去 `mkinitcpio -P` 修复后重启验证。
 
 ## 自检
 

@@ -20,7 +20,14 @@
 
 ## 一个最小可用的 service
 
-假设应用是 `/opt/demo/app.py`，用 `/opt/demo/venv/bin/python` 运行、监听 8000（环境：WSL，需 root）：
+假设应用是 `/opt/demo/app.py`，用 `/opt/demo/venv/bin/python` 运行、监听 8000（环境：WSL，需 root）。先造出 unit 里引用的运行身份与目录——`User=demo` 不存在时 `enable --now` 会报 `status=217/USER`，练习直接卡死：
+
+```bash
+sudo useradd --system --user-group --home-dir /opt/demo --shell /usr/sbin/nologin demo
+sudo install -d -o demo -g demo /opt/demo
+id demo            # 预期：uid=…(demo) gid=…(demo)
+ls -ld /opt/demo   # 预期：属主属组均为 demo
+```
 
 ```ini
 # /etc/systemd/system/demo.service
