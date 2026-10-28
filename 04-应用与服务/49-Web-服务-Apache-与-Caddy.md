@@ -7,14 +7,14 @@
 
 ## 三者定位一张表
 
-| 维度 | nginx | Apache httpd | Caddy |
-| --- | --- | --- | --- |
-| 配置模型 | 层级块（`http`/`server`/`location`） | 全局指令 + `<VirtualHost>` + `.htaccess` | 极简 DSL（Caddyfile）或 JSON |
-| 进程模型 | 事件驱动，少量 worker | 多进程/多线程（MPM 可配） | Go 写的，事件驱动 |
-| TLS | 需 certbot 或手工配证书 | 需 mod_ssl + certbot | **默认自动申请与续期** |
-| 扩展 | 模块需重编译（多数发行版已带常用模块） | 模块动态加载（`LoadModule`） | 插件需重编译（官方版内置常用能力） |
-| 典型优势 | 高并发静态与反代、生态最大 | 目录级 `.htaccess`、历史应用兼容 | 零配置 HTTPS、配置短 |
-| 典型代价 | 配置语法坑多 | 配置冗长、性能调优复杂 | 生态与排障资料少于前两者 |
+| 维度     | nginx                                  | Apache httpd                             | Caddy                              |
+| -------- | -------------------------------------- | ---------------------------------------- | ---------------------------------- |
+| 配置模型 | 层级块（`http`/`server`/`location`）   | 全局指令 + `<VirtualHost>` + `.htaccess` | 极简 DSL（Caddyfile）或 JSON       |
+| 进程模型 | 事件驱动，少量 worker                  | 多进程/多线程（MPM 可配）                | Go 写的，事件驱动                  |
+| TLS      | 需 certbot 或手工配证书                | 需 mod_ssl + certbot                     | **默认自动申请与续期**             |
+| 扩展     | 模块需重编译（多数发行版已带常用模块） | 模块动态加载（`LoadModule`）             | 插件需重编译（官方版内置常用能力） |
+| 典型优势 | 高并发静态与反代、生态最大             | 目录级 `.htaccess`、历史应用兼容         | 零配置 HTTPS、配置短               |
+| 典型代价 | 配置语法坑多                           | 配置冗长、性能调优复杂                   | 生态与排障资料少于前两者           |
 
 选择建议：新项目做反向代理或静态站，nginx 与 Caddy 都合适——**不想折腾证书选 Caddy，需要最大生态与调优空间选 nginx**；已有大量 `.htaccess` 或老应用只支持 Apache 时，继续用 Apache。
 
@@ -27,6 +27,8 @@ sudo pacman -S apache
 sudo systemctl enable --now httpd
 curl -I http://127.0.0.1
 ```
+
+80 端口与第 47 章的 nginx 冲突：同机做本章实验前先 `systemctl disable --now nginx`，或把 vhost 改到 8080/8081。排障看 `/var/log/httpd/` 里的 `*_log`；Caddy 则看 `journalctl -u caddy`，两边都先过 `configtest`/`caddy validate`。
 
 Arch 上的几个固定事实：运行用户是 `http`、站点根是 `/srv/http`、主配置 `/etc/httpd/conf/httpd.conf`、日志在 `/var/log/httpd/`（`access_log`、`error_log`）。语法检查用：
 
@@ -50,7 +52,7 @@ sudo apachectl configtest      # 输出 Syntax OK
 </VirtualHost>
 ```
 
-反代需要 `mod_proxy` 与 `mod_proxy_http`，在 Arch 的默认配置里通常已通过 `LoadModule` 加载；若报 `Invalid command 'ProxyPass'`，就是这两个模块没启。`ProxyPassReverse` 负责改写后端返回的重定向地址，漏了它会出现「登录后跳回 127.0.0.1:8000」。
+反代需要 `mod_proxy` 与 `mod_proxy_http`。**Arch 默认的 `httpd.conf` 里这两行 `LoadModule` 是注释状态**，直接写 `ProxyPass` 会报 `Invalid command 'ProxyPass'`——先取消这两行注释，`httpd -M | grep proxy` 确认模块已加载，`configtest` 通过再 reload。`ProxyPassReverse` 负责改写后端返回的重定向地址，漏了它会出现「登录后跳回 127.0.0.1:8000」。
 
 改完统一 `configtest` → `systemctl reload httpd`。Apache 的 `reload` 会重启 worker，短暂抖动比 nginx 明显。
 
@@ -90,20 +92,20 @@ sudo systemctl reload caddy
 三个必须知道的边界：
 
 - **自动 HTTPS 依赖域名可达**：本地 `localhost` 或内网域名拿不到公网证书，Caddy 会退回内部 CA（浏览器会警告）。本地开发用 `:8080` 这种端口写法即可。
-- **证书状态**：`/var/lib/caddy/.local/share/caddy` 下是证书与账户信息，备份它等于备份了续期能力。
+- **证书状态**：Arch 的 `caddy.service` 把证书与账户数据放在 `/var/lib/caddy`（具体以 `systemctl cat caddy` 里的 `Environment`/`User` 为准），备份它等于备份了续期能力。
 - **插件要重编译**：Caddy 的模块不像 Apache 那样 `LoadModule`，需要 `xcaddy` 重新构建——这是它生态较小的主要原因。
 
 ## 互迁时哪些要重写
 
-| 概念 | nginx | Apache | Caddy |
-| --- | --- | --- | --- |
-| 站点根 | `root /srv/www/x;` | `DocumentRoot "/srv/http/x"` | `root * /srv/www/x` |
-| 反代 | `proxy_pass http://127.0.0.1:8000;` | `ProxyPass "/" "http://127.0.0.1:8000/"` | `reverse_proxy 127.0.0.1:8000` |
-| 传 Host | `proxy_set_header Host $host;` | `ProxyPreserveHost On` | 自动 |
-| 客户端 IP | 手工设 `X-Real-IP` | `mod_remoteip` 或依赖 `X-Forwarded-For` | 自动 |
-| 大文件上传 | `client_max_body_size 20m;` | `LimitRequestBody` | 默认无硬限制 |
-| 配置检查 | `nginx -t` | `apachectl configtest` | `caddy validate` |
-| TLS | certbot / 手工 | mod_ssl + certbot | 自动 |
+| 概念       | nginx                               | Apache                                   | Caddy                          |
+| ---------- | ----------------------------------- | ---------------------------------------- | ------------------------------ |
+| 站点根     | `root /srv/www/x;`                  | `DocumentRoot "/srv/http/x"`             | `root * /srv/www/x`            |
+| 反代       | `proxy_pass http://127.0.0.1:8000;` | `ProxyPass "/" "http://127.0.0.1:8000/"` | `reverse_proxy 127.0.0.1:8000` |
+| 传 Host    | `proxy_set_header Host $host;`      | `ProxyPreserveHost On`                   | 自动                           |
+| 客户端 IP  | 手工设 `X-Real-IP`                  | `mod_remoteip` 或依赖 `X-Forwarded-For`  | 自动                           |
+| 大文件上传 | `client_max_body_size 20m;`         | `LimitRequestBody`                       | 默认无硬限制                   |
+| 配置检查   | `nginx -t`                          | `apachectl configtest`                   | `caddy validate`               |
+| TLS        | certbot / 手工                      | mod_ssl + certbot                        | 自动                           |
 
 迁移时真正会出问题的从来不是这些语法，而是**隐式行为**：谁负责传 `Host`、谁限制了请求体大小、谁处理了 gzip、谁决定了重定向的协议。迁移前把这几项在新旧两边各验证一次，比逐行翻译配置有效得多。
 
@@ -122,7 +124,7 @@ sudo systemctl reload caddy
 3. Caddy 起站（环境：WSL）：用 `:8080` 写一个 `file_server` 站点，`caddy validate` 后 `reload`，`curl -I` 验证；对比 nginx 同样功能所需的行数。
 4. Caddy 反代（环境：WSL）：`reverse_proxy 127.0.0.1:8000`，在后端打印请求头，确认 `Host`、`X-Forwarded-For`、`X-Forwarded-Proto` 都是自动带上来的。
 5. 迁移演练（环境：WSL）：把第 47 章的 nginx 反代配置翻译成 Caddyfile，逐项核对「传 Host / 限制体积 / gzip」三项行为是否等价。
-6. 结论输出（环境：无）：为三个场景各选一个服务并给出两条理由——(a) 个人项目要 HTTPS；(b) 公司老系统依赖 `.htaccess`；(c) 高并发静态站 + 精细调优。
+6. 结论输出（环境：阅读题）：为三个场景各选一个服务并给出两条理由——(a) 个人项目要 HTTPS；(b) 公司老系统依赖 `.htaccess`；(c) 高并发静态站 + 精细调优。
 
 ## 自检
 

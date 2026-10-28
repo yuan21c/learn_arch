@@ -1,6 +1,6 @@
 # 第 47 章 Web 服务：nginx
 
-从这一章起进入「把服务跑起来」的阶段。nginx 是最常见的入口：它既能做静态文件服务器，也能做反向代理，把请求转给后端的应用（Python、Node、Java）。本章按「装 → 配 → 反代 → TLS → 排障」的顺序走，全部操作在 WSL 的 Arch 上完成。
+从这一章起进入「把服务跑起来」的阶段。nginx 是最常见的入口：它既能做静态文件服务器，也能做反向代理，把请求转给后端的应用（Python、Node、Java）。本章按「装 → 配 → 反代 → TLS → 排障」的顺序走，除公网证书申请外全部操作都可在 WSL 的 Arch 上完成。
 
 > 本章目标：能安装并启动 nginx，理解 `nginx.conf` 与 `conf.d` 的分工；会写 server 块托管静态站点，并处理 SPA 的 `try_files`；能把请求反代到本机应用并正确传递 `Host`/`X-Forwarded-*` 头；会用 certbot 配 TLS 并自动续期；能用 `nginx -t`、访问日志与错误日志定位问题。
 > 对应 Wiki：[Nginx](https://wiki.archlinux.org/title/Nginx)
@@ -20,7 +20,7 @@ curl -I http://127.0.0.1
 
 - **Arch 的 nginx 以 `http` 用户运行**，不是 `www-data`（Debian）也不是 `nginx`（RHEL）。文件权限判断要看 `http`。
 - 默认站点根目录是 `/usr/share/nginx/html`，主配置在 `/etc/nginx/nginx.conf`。
-- **日志默认走 journald**：Arch 的 nginx 以 `--error-log-path=stderr` 编译，错误进 `journalctl -u nginx`，`/var/log/nginx/error.log` 默认不存在；访问日志同理，除非在配置里显式指定路径。
+- **日志分两路**：错误日志以 `--error-log-path=stderr` 编译，默认进 `journalctl -u nginx`（`/var/log/nginx/error.log` 默认不存在）；访问日志默认落文件 `/var/log/nginx/access.log`（配 logrotate 轮转），server 块里可另指路径。
 
 ## 配置结构：主文件与片段
 
@@ -44,7 +44,7 @@ sudo nginx -t                 # 语法与路径检查，输出 syntax is ok / te
 sudo systemctl reload nginx   # 平滑重载：现有连接不断
 ```
 
-`reload` 与 `restart` 的区别要记住：`reload` 让 worker 平滑切换，不中断连接；`restart` 会停掉主进程，连接全断。**改站点配置用 `reload`，改端口/用户等需要重新绑定 socket 的配置才用 `restart`**（实际上 reload 也能处理端口变化，但重启更直观）。
+`reload` 与 `restart` 的区别要记住：`reload` 让 worker 平滑切换，不中断连接；`restart` 会停掉主进程，连接全断。**改站点配置用 `reload`，改端口/用户等需要重新绑定 socket 的配置才用 `restart`**。
 
 ## 托管静态站点
 
@@ -52,13 +52,13 @@ sudo systemctl reload nginx   # 平滑重载：现有连接不断
 
 ```nginx
 server {
-    listen 80;
+    listen 80 default_server;      # 抢下默认站点，见下方要点
     server_name example.local;
 
     root /srv/www/example;
     index index.html;
 
-    # 这两行不写就默认进 journald；要落文件就必须自己指定路径
+    # 不写则 error 进 journald、access 落 /var/log/nginx/access.log
     access_log /var/log/nginx/example.access.log;
     error_log  /var/log/nginx/example.error.log;
 
@@ -73,7 +73,8 @@ server {
 - `root` 指向的目录必须让 `http` 用户可读（目录 `755`、文件 `644`）；否则报 `403 Forbidden`。
 - `try_files $uri $uri/ =404` 是静态站的标准写法：先找文件，再找目录，都没有才 404。
 - **前端 SPA**（React/Vue）要把最后一项换成 `index.html`：`try_files $uri $uri/ /index.html;`，否则刷新子路由会 404。
-- 多个站点共用一个 IP 时，`server_name` 决定命中哪个 server 块；没有匹配的落到 `default_server`。
+- 多个站点共用一个 IP 时，`server_name` 决定命中哪个 server 块；**Arch 自带的默认 server（`listen 80; server_name localhost;`）在 `conf.d` include 之前**，按 IP 访问或 Host 不匹配的请求都会落到它（看到默认页就是这个原因）。要抢占就写 `listen 80 default_server;`（一个端口只能有一个，需先注释主配置里的默认 server），或测试时用 `curl -H 'Host: example.local'` 命中自己的站点。
+- 本章占 80 端口；同机做第 49 章的 Apache/Caddy 实验前先 `systemctl disable --now nginx`，或把对方改到 8080/8081。
 
 ## 反向代理：把请求交给应用
 
@@ -139,18 +140,18 @@ sudo certbot renew --dry-run    # 演练续期，不真的换证书
 ```bash
 sudo nginx -t                                  # 语法/路径错误
 sudo journalctl -u nginx -b --no-pager | tail -50   # 默认日志位置（启动失败、502、403 的根因）
-sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码、耗时（需显式配了 access_log）
+sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码、耗时（默认即落此文件）
 ```
 
 对照表：
 
-| 现象 | 常见原因 |
-| --- | --- |
+| 现象              | 常见原因                                                     |
+| ----------------- | ------------------------------------------------------------ |
 | `502 Bad Gateway` | 后端没起来、端口写错、`proxy_pass` 指向了 `0.0.0.0` 而非回环 |
-| `403 Forbidden` | `root` 目录权限不足，或 `autoindex` 关闭且无 `index.html` |
-| `404` 但文件存在 | `root` 与 `location` 拼接错位，或 SPA 没配 `try_files` |
-| `413` | `client_max_body_size` 太小 |
-| 改了配置没生效 | 忘了 `reload`，或改动写在了不生效的文件里 |
+| `403 Forbidden`   | `root` 目录权限不足，或 `autoindex` 关闭且无 `index.html`    |
+| `404` 但文件存在  | `root` 与 `location` 拼接错位，或 SPA 没配 `try_files`       |
+| `413`             | `client_max_body_size` 太小                                  |
+| 改了配置没生效    | 忘了 `reload`，或改动写在了不生效的文件里                    |
 
 `502` 的一个高频细节：后端只监听 `127.0.0.1` 时，`proxy_pass http://127.0.0.1:8000` 可以通；写 `http://localhost:8000` 在某些环境下会先解析到 `::1`（IPv6）导致连不上。**反代地址优先写具体 IP**。
 
@@ -165,7 +166,7 @@ sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码�
 
 ## 练习
 
-1. 静态站（环境：WSL）：在 `/srv/www/lab` 放一个 `index.html`，写 `conf.d/lab.conf`，用 `curl -I` 与浏览器各访问一次；故意把目录权限改成 `700`，观察 `403` 并从 error.log 里找到证据。
+1. 静态站（环境：WSL）：在 `/srv/www/lab` 放一个 `index.html`，写 `conf.d/lab.conf`，用 `curl -I -H 'Host: lab.example.local' http://127.0.0.1/` 验证（不带 Host 会落到默认站点）；故意把目录权限改成 `700`，观察 `403` 并从 error.log 里找到证据。
 2. SPA 路由（环境：WSL）：把 `try_files` 改成 `/index.html`，用 `curl -I http://127.0.0.1/some/route` 验证返回 200 而不是 404。
 3. 反向代理（环境：WSL）：用第 46 章的 `demo.service` 或 `python3 -m http.server 8000` 起后端，配反代后用 `curl -H 'Host: app.example.local' http://127.0.0.1/` 验证（Host 必须与 `server_name` 一致，否则会落到默认站点）；再删掉 `proxy_set_header Host`，对比后端看到的头。
 4. 413 复现（环境：WSL）：用 `curl -F file=@大文件` 上传超过 1 MB 的文件触发 `413`，调大 `client_max_body_size` 后重试成功。
