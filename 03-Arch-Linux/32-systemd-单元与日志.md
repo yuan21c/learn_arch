@@ -45,6 +45,10 @@ unit 的名字后缀决定类型：
 | `systemctl enable --now 单元` | 启用并立即启动         |
 | `systemctl mask 单元`         | 彻底禁止启动           |
 
+### [Install] 四字段与 target
+
+`[Install]` 常用四个字段：`WantedBy=`（把本单元挂进某个 target 的 `.wants/`，最常用）、`RequiredBy=`（强依赖，本单元失败会拖垮 target）、`Alias=`（给单元起别名链接）、`Also=`（enable 本单元时一并启用的其他单元）。自启挂到哪个 target 决定它在哪种运行级别生效：`multi-user.target`（命令行多用户）与 `graphical.target`（图形）用 `systemctl get-default` 查询、`sudo systemctl set-default` 切换，`systemctl isolate` 只影响本次启动。
+
 `enable` 与 `start` 是两件事：`enable` 只按 `[Install]` 段创建开机自启的符号链接，不改变当前运行状态；`start` 只影响当前，不会让服务在下次开机自动运行。排查「改了配置但没生效」时，先确认服务是否真的重启过。
 
 `disable` 只删除自启链接，手动或依赖仍能启动它。`mask` 把 unit 链到 `/dev/null`，任何方式都无法启动，适合彻底禁用一个服务。
@@ -150,10 +154,10 @@ journalctl -u demo.service -b --no-pager -n 30
 
 ## 练习
 
-1. 用 `systemctl cat` 查看一个系统服务，指出它的 unit 文件来自哪个目录。
-2. 用 `systemctl edit` 给一个测试服务加一行 `Environment=DEMO=1`，daemon-reload 后重启并验证。
-3. 用 `journalctl -u` 查看该服务的日志，再用 `-p err -b` 查看系统错误。
-4. 用 `systemctl mask` 禁用一个不需要的服务，重启后确认它没有运行，再 `unmask`。
+1. 用 `systemctl cat` 查看一个系统服务，指出它的 unit 文件来自哪个目录。（环境：WSL）
+2. 用 `systemctl edit` 给一个测试服务加一行 `Environment=DEMO=1`，daemon-reload 后重启并验证。（环境：WSL）
+3. 用 `journalctl -u` 查看该服务的日志，再用 `-p err -b` 查看系统错误。（环境：WSL）
+4. 用 `systemctl mask` 禁用一个不需要的服务，重启后确认它没有运行，再 `unmask`。（环境：WSL）
 
 ## 自检
 

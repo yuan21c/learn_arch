@@ -68,7 +68,7 @@ Environment=PYTHONUNBUFFERED=1
 | `*-*-* 03:30:00` | 每天 03:30   |
 | `*:0/15`         | 每 15 分钟   |
 
-timer 的 `[Install]` 段写 `WantedBy=timers.target`，到点后启动同名 service（`Unit=` 可省略）。service 本身不需要 `[Install]`，也不应该单独 `enable`；启用 timer 即可。
+被 timer 触发的 oneshot service **不需要 `[Install]`**、也不单独 enable；常驻服务才需要。timer 的 `[Install]` 段写 `WantedBy=timers.target`，到点后启动同名 service（`Unit=` 可省略）。service 本身不需要 `[Install]`，也不应该单独 `enable`；启用 timer 即可。
 
 ## 完整示例：每周清理缓存
 
@@ -138,6 +138,8 @@ systemctl list-timers
 | 服务从未触发           | `Unit=` 指向了不存在的 service | 检查 timer 的 `Unit=` 与文件名 |
 | 开机后错过一次执行     | 未设 `Persistent=true`         | 补上并重载                     |
 
+系统级与用户级是两条并行的路：系统 unit 放 `/etc/systemd/system/`（本章默认，`systemctl` 管理）；用户 unit 放 `~/.config/systemd/user/`（`systemctl --user` 管理），且要 `sudo loginctl enable-linger` 才能在没有登录会话时保持运行——第 46 章会用它托管应用。
+
 ## 小结
 
 - service 三段式：`[Unit]` 描述依赖，`[Service]` 定义进程，`[Install]` 决定自启。
@@ -149,10 +151,10 @@ systemctl list-timers
 
 ## 练习
 
-1. 写一个 oneshot service，把当前时间追加到 `/var/log/demo-time.log`，手动启动并查看日志。
-2. 给它配一个每 15 分钟触发一次的 timer，用 `systemd-analyze calendar '*:0/15'` 验证。
-3. 启用 timer，用 `list-timers` 记录 NEXT 时间；等待触发后用 journalctl 确认执行。
-4. 故意把 `ExecStart` 写成不存在的路径，观察 `status` 与 journalctl 的报错，再修复。
+1. 写一个 oneshot service，把当前时间追加到 `/var/log/demo-time.log`，手动启动并查看日志。（环境：WSL）
+2. 给它配一个每 15 分钟触发一次的 timer，用 `systemd-analyze calendar '*:0/15'` 验证。（环境：WSL）
+3. 启用 timer，用 `list-timers` 记录 NEXT 时间；等待触发后用 journalctl 确认执行。（环境：WSL）
+4. 故意把 `ExecStart` 写成不存在的路径，观察 `status` 与 journalctl 的报错，再修复。（环境：WSL）
 
 ## 自检
 
