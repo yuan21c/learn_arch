@@ -114,7 +114,7 @@ need_root backup.sh
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 ```
 
-`trap ... EXIT` 保证中途失败也不留垃圾。最后用 `shellcheck 脚本.sh` 静态检查，本章列出的坑它能抓出大半；Arch 下 `pacman -S shellcheck`（第 29 章），说明见 [ShellCheck](https://www.shellcheck.net/)。
+`trap ... EXIT` 保证中途失败也不留垃圾。最后用 `shellcheck 脚本.sh` 静态检查，本章列出的坑它能抓出大半；用发行版包管理器安装（Arch：`pacman -S shellcheck`，见第 30 章），说明见 [ShellCheck](https://www.shellcheck.net/)。
 
 ## 两个能用的脚本
 
@@ -170,7 +170,7 @@ exit 1
 2. 引号实验（环境：WSL）：创建 `my file.txt`，比较 `ls $f` 与 `ls "$f"`；再对照 `for f in $(ls)` 与 `for f in *`，说明哪个会在含空格的文件名上出错。
 3. 参数与退出码（环境：WSL）：写 `args.sh` 打印 `$0`、`$#`、`"$@"`（每个参数加方括号），参数少于 2 个时以退出码 2 结束，用 `echo $?` 验证。
 4. 条件与循环（环境：WSL）：遍历 `/etc` 下 `.conf` 文件，只对普通文件用 `printf` 输出「文件名: 行数」；无匹配时正常退出而非把 `*.conf` 当文件名。
-5. 健壮性改造（环境：WSL，`/tmp` 演练）：对备份脚本删掉 `set -euo pipefail` 与 `trap`，传入不存在的目录，对比有无这两项时脚本是否继续执行、是否留下临时目录。
+5. 健壮性改造（环境：WSL，`/tmp` 演练）：把「健壮性」一节的 `tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT` 片段扩成十行小脚本（在 `$tmp` 里造文件），分别在「有 trap」与「删掉 trap、删掉 `set -euo pipefail`」两个版本里传入不存在的目录制造中途失败，对比是否留下临时目录。
 6. 静态检查（环境：WSL）：装了 `shellcheck` 就对两个示例脚本运行并逐条解释警告；没装先 `pacman -S shellcheck`（第 30 章）。
 
 ## 自检
