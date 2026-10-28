@@ -25,12 +25,12 @@ sudo useradd -m -G wheel -s /bin/bash arch
 sudo passwd arch
 ```
 
-| 参数 | 作用 |
-| --- | --- |
-| `-m` | 创建家目录 `/home/arch` 并复制 `/etc/skel` 的初始文件 |
-| `-G wheel` | 加入附加组 wheel（决定能否 sudo） |
-| `-s /bin/bash` | 指定登录 shell |
-| `arch` | 用户名 |
+| 参数           | 作用                                                  |
+| -------------- | ----------------------------------------------------- |
+| `-m`           | 创建家目录 `/home/arch` 并复制 `/etc/skel` 的初始文件 |
+| `-G wheel`     | 加入附加组 wheel（决定能否 sudo）                     |
+| `-s /bin/bash` | 指定登录 shell                                        |
+| `arch`         | 用户名                                                |
 
 `-m` 不能省：Arch 的 `useradd` 默认**不**创建家目录，漏了它会出现「能登录但没有 `~`」的怪状态。家目录的初始文件来自 `/etc/skel`，这也是第 10 章讲启动文件的落点。
 
@@ -56,10 +56,10 @@ sudo visudo -c          # 语法检查，输出 parsed OK 才算成功
 
 四个要点：
 
-- **必须用 `visudo`**：它在保存时做语法检查，并在你写坏时拒绝保存。直接用编辑器改 sudoers 出错，会让所有 sudo 失效——包括修它自己的 sudo。
+- **首选 `visudo`**（编辑 drop-in 用 `visudo -f 文件`）：它在保存时做语法检查，写坏时不落盘并进入 `What now?` 询问——选 `e` 回去重编辑，不要选 `Q` 丢弃。直接用编辑器改 sudoers 出错，会让所有 sudo 失效——包括修它自己的 sudo。
 - **drop-in 优先**：`/etc/sudoers.d/` 下的文件由主文件里的 `@includedir` 加载，升级时不会被包管理器覆盖；主文件则可能被更新为 `.pacnew`（第 38 章）。
 - **文件名有约定**：不要用带 `.` 或以 `~` 结尾的名字，`sudo` 会忽略它们；常见写法是 `10-wheel`、`20-deploy`。
-- **权限必须是 `0440`**：`visudo -f` 会自动处理，手工 `chmod` 时要记得。
+- **权限必须是 `0440`**：`visudo -f` 是否自动设置权限随版本而定，稳妥做法是显式 `sudo chown root:root 文件 && sudo chmod 0440 文件`，再用 `sudo -l` 确认授权生效。
 
 授权粒度可以更细，例如只允许 wheel 组管理服务：
 
@@ -127,7 +127,7 @@ sudo -l                 # 列出当前用户被允许执行的命令
 
 ## 练习
 
-1. 建用户并验证（环境：WSL）：创建 `lab` 用户加入 wheel，`id lab` 确认 UID、GID 与 wheel；再 `su - lab` 后用 `sudo -v` 验证提权可用。
+1. 建用户并验证（环境：WSL）：创建 `lab` 用户加入 wheel，`sudo passwd lab` 设密码（不设则账号锁定、`su - lab` 必然认证失败），`id lab` 确认 UID、GID 与 wheel；再按练习 2 落好 drop-in 授权后 `su - lab`，用 `sudo -v` 验证提权可用（预期：要求输入 lab 的密码，成功则无输出）。
 2. drop-in 授权（环境：WSL）：删掉主文件里 `%wheel` 的注释（若本来就没开），改用 `/etc/sudoers.d/10-wheel` 授权，`visudo -c` 验证；再用 `sudo -l -U lab` 查看授权结果。
 3. 语法检查的价值（环境：WSL）：用 `visudo -f` 打开 drop-in，故意写一行语法错误，观察保存时是否被拒绝；恢复后确认 `sudo` 仍可用。
 4. WSL 默认用户（环境：WSL + PowerShell）：设置 `[user] default=lab`，`wsl --shutdown` 后重进验证 `whoami`；再把用户名改成不存在的 `nobodyx`，重进观察是否回退 root，最后用 `wsl -u root` 修回。
