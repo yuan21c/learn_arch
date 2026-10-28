@@ -11,16 +11,16 @@ MariaDB 与 PostgreSQL 的安装流程形状相同，但**认证模型、权限�
 
 ```bash
 sudo pacman -S postgresql
-sudo -u postgres initdb -D /var/lib/postgres/data
+sudo -u postgres initdb -D /var/lib/postgres/data --auth-local=peer --auth-host=scram-sha-256
 sudo systemctl enable --now postgresql
 systemctl status postgresql
 ```
 
 三处与 MariaDB 不同：
 
-- **初始化由服务用户执行**：`postgres` 用户在装包时创建，`initdb` 必须以它身份运行（root 执行会被拒绝）。数据目录是 `/var/lib/postgres/data`。
-- **没有「安全初始化」脚本**：PostgreSQL 的初始配置本来就是收紧的（只监听本机、认证规则明确），不需要 `xxx-secure-installation`。
-- **一个实例 = 一个数据目录（cluster）**：要跑多个版本或多个实例，就得建多个目录并在 `postgresql.service` 之外用 `postgresql@.service` 或独立 unit 托管。
+- **初始化由服务用户执行**：`postgres` 用户在装包时创建，`initdb` 必须以它身份运行（root 执行会被拒绝）。数据目录是 `/var/lib/postgres/data`，属主保持 `postgres:postgres`、权限 700，别用 root 去动它。
+- **默认认证是 `trust`，必须显式收紧**：不带 `--auth` 的 `initdb` 生成的 `pg_hba.conf` 允许本机任何用户**免密**以任意角色登录（`psql -U app` 可能直接成功）——这是安全误判的重灾区。上例的 `--auth-local=peer --auth-host=scram-sha-256` 就是「安全初始化」；PG 没有 `xxx-secure-installation` 脚本，这一步就是它。
+- **一个实例 = 一个数据目录（cluster）**：要跑多个版本或多个实例，就得建多个目录并自写 unit 或 drop-in 托管（当前包只提供 `postgresql.service`，没有现成的 `postgresql@.service`，以 Wiki 为准）。
 
 `initdb` 时若 locale 报错，是因为系统 locale 与环境不一致；用 `--locale=C.UTF-8` 或先配好 locale 再初始化。这一步只做一次，重做会清空数据。
 
@@ -40,12 +40,12 @@ CREATE DATABASE app OWNER app;
 
 与 MariaDB 的关键差异：
 
-| 概念 | MariaDB | PostgreSQL |
-| --- | --- | --- |
-| 用户 | `'app'@'host'`（用户名 + 来源） | `app`（角色），来源由 `pg_hba.conf` 决定 |
-| 权限授予 | `GRANT ... ON db.*` | `GRANT ... ON 对象`（表、序列、schema），库级只有 `CONNECT` |
-| 默认权限 | 新库对应用户可见 | 新库属主才有完整权限，其他人默认只能连不能读 |
-| 超级用户 | `root@localhost` | `postgres` |
+| 概念     | MariaDB                         | PostgreSQL                                                  |
+| -------- | ------------------------------- | ----------------------------------------------------------- |
+| 用户     | `'app'@'host'`（用户名 + 来源） | `app`（角色），来源由 `pg_hba.conf` 决定                    |
+| 权限授予 | `GRANT ... ON db.*`             | `GRANT ... ON 对象`（表、序列、schema），库级只有 `CONNECT` |
+| 默认权限 | 新库对应用户可见                | 新库属主才有完整权限，其他人默认只能连不能读                |
+| 超级用户 | `root@localhost`                | `postgres`                                                  |
 
 这意味着「建了库、建了角色，应用还是读不到表」是正常现象：表属于谁、`search_path` 指向哪个 schema、有没有 `USAGE` 权限，三件事都要给。生产实践是**让应用角色拥有自己的 schema**，或把表的属主设为应用角色。
 
@@ -71,22 +71,24 @@ host    all       all   ::1/128       scram-sha-256
 PostgreSQL 的备份逻辑更简单也更可靠：`pg_dump` 默认在**单个事务里**取一致性快照，不需要额外开关：
 
 ```bash
-pg_dump -Fc -f app.dump app              # 自定义格式，支持并行恢复与选择性恢复
-pg_dump -Fp -f app.sql app               # 纯 SQL，便于人读与跨版本查看
-pg_dumpall --globals-only -f roles.sql   # 角色与权限单独备份
+sudo -u postgres pg_dump -Fc -f app.dump app              # 自定义格式，支持并行恢复与选择性恢复
+sudo -u postgres pg_dump -Fp -f app.sql app               # 纯 SQL，便于人读与跨版本查看
+sudo -u postgres pg_dumpall --globals-only -f roles.sql   # 角色与权限单独备份
 ```
+
+所有客户端命令都带 `sudo -u postgres`（走 `peer` 认证）或显式 `-U/-h` 并提供密码——直接以普通用户跑会 `role does not exist` 或认证被拒。
 
 恢复：
 
 ```bash
-createdb -O app app2
-pg_restore -d app2 app.dump
+sudo -u postgres createdb -O app app2
+sudo -u postgres pg_restore -d app2 app.dump
 ```
 
 三个容易踩的点：
 
 - **`pg_dump` 不导出角色**，只导出对象；换实例恢复时要先 `roles.sql`，否则对象属主不存在。
-- **版本兼容是单向的**：低版本 `pg_dump` 不能导入高版本实例；升级大版本要用 `pg_upgrade` 或「导出 → 新集群 → 导入」。
+- **版本规则**：`pg_dump` 的版本应**不低于**源服务器；dump 可以恢复到同版本或更高版本的实例。升级大版本用 `pg_upgrade` 或「导出 → 新集群 → 导入」。
 - **验证同样不可省**：把 dump 恢复到 `app2`，跑关键表的 `COUNT(*)` 与一条业务查询，才算备份可用。
 
 物理级备份（`pg_basebackup`）与 WAL 归档属于生产级方案，学习阶段用 `pg_dump` 足够。
@@ -107,7 +109,7 @@ sudo journalctl -u postgresql -b --no-pager | tail -30
 ## 小结
 
 - `initdb` 必须以 `postgres` 用户执行，只做一次；数据目录即一个集群。
-- 没有安全初始化脚本，因为默认配置已经收紧；角色可登录，库要显式授权。
+- 没有安全初始化脚本：`initdb` 默认 `trust`，必须用 `--auth-local=peer --auth-host=scram-sha-256`（或事后改 `pg_hba.conf`）收紧；角色可登录，库要显式授权。
 - 连接能否成功由 `pg_hba.conf` 决定（`peer` vs `scram-sha-256`），改完 `reload`。
 - `pg_dump -Fc` 默认一致性快照；备份要连角色一起（`pg_dumpall --globals-only`），并实际恢复验证。
 - `pg_stat_activity` 是排障首选；先调 `shared_buffers` 与 `max_connections`。
@@ -115,10 +117,10 @@ sudo journalctl -u postgresql -b --no-pager | tail -30
 ## 练习
 
 1. 初始化（环境：WSL）：完成安装与 `initdb`，用 `sudo -u postgres psql -c 'SELECT version()'` 验证；再以 root 身份直接跑一次 `initdb`，记录拒绝信息。
-2. 三种登录（环境：WSL）：分别用 `sudo -u postgres psql`、`psql -U app -h 127.0.0.1`、`psql -U app`（socket）尝试，对照 `pg_hba.conf` 解释结果。
+2. 三种登录（环境：WSL）：分别用 `sudo -u postgres psql`、`psql -U app -h 127.0.0.1`、`psql -U app`（socket）尝试，对照 `pg_hba.conf` 解释结果（预期：收紧后前者免密成功、后两者分别要密码/被 peer 拒绝；若 `psql -U app` 竟然免密成功，说明你的 `pg_hba` 还是默认 `trust`——回看初始化参数）。
 3. 建角色建库（环境：WSL）：建 `app` 角色与 `app` 库，建一张表并插入数据；再换一个只能连不能读的角色，验证「连上但查不到表」。
 4. 权限细节（环境：WSL）：把表属主改为 `app`，或给 `app` 授 `USAGE ON SCHEMA public` + `SELECT ON ALL TABLES`，验证读权限恢复。
-5. 备份恢复（环境：WSL）：`pg_dump -Fc` → `createdb app2` → `pg_restore -d app2` → 校验行数；再用 `pg_dumpall --globals-only` 导出角色，说明为什么换实例必须先恢复它。
+5. 备份恢复（环境：WSL）：`sudo -u postgres pg_dump -Fc` → `sudo -u postgres createdb app2` → `sudo -u postgres pg_restore -d app2` → 校验行数；再用 `pg_dumpall --globals-only` 导出角色，说明为什么换实例必须先恢复它。
 6. 活动会话（环境：WSL）：开两个 `psql` 会话，一个执行 `BEGIN; SELECT 1;` 后挂起，用 `pg_stat_activity` 找出 `idle in transaction` 的连接与停留时间。
 
 ## 自检

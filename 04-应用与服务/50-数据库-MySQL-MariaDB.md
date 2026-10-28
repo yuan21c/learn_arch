@@ -1,6 +1,6 @@
 # 第 50 章 数据库：MySQL/MariaDB
 
-数据库和 Web 服务是开发工作里最常自建的两类服务。这一章以 MariaDB（Arch 仓库里的 MySQL 分支）为主线，走完「装 → 初始化 → 建库建号 → 授权 → 连接 → 备份恢复 → 排障」。同一个流程换到 PostgreSQL 只有命令差异，第 51 章会做对照。
+数据库和 Web 服务是开发工作里最常自建的两类服务。这一章以 MariaDB（Arch 仓库里的 MySQL 分支）为主线，走完「装 → 初始化 → 建库建号 → 授权 → 连接 → 备份恢复 → 排障」。换到 PostgreSQL 时流程形状相同，但**认证、权限、备份三处差异很大**，照搬命令一定踩坑——第 51 章专门对照这三处。
 
 > 本章目标：能完成 MariaDB 的安装与数据目录初始化并交给 systemd 托管；理解 root 的 `unix_socket` 认证为何让 `sudo mariadb` 免密；能建库、建应用账号并按最小权限授权；会用 `mariadb-dump` 做一致性备份并在新实例恢复；能从 `journalctl -u mariadb` 与错误日志定位「连不上」的四类原因。
 > 对应 Wiki：[MariaDB](https://wiki.archlinux.org/title/MariaDB)
@@ -24,7 +24,7 @@ systemctl status mariadb
 sudo mariadb-secure-installation
 ```
 
-它会问四件事：是否设置 root 密码、是否删除匿名用户、是否禁止 root 远程登录、是否删除测试库。四个问题都建议答「是」。
+它会逐项询问：设置 root 密码、是否保留 `unix_socket` 认证、删除匿名用户、禁止 root 远程登录、删除测试库、重载权限表。**建议保留 `unix_socket`**（这是 `sudo mariadb` 免密的基础）；若给 root 设了密码，注意登录方式会随之变化，收尾时把 `sudo mariadb` 与 `mariadb -u root -p` 各验证一遍。脚本自身也提示：多数情况并不必跑它。
 
 三个版本差异要留意：较新的 MariaDB 把客户端命令改名为 `mariadb`（`mysql` 是兼容别名，逐步淡出）；`mysql_secure_installation` 对应改名为 `mariadb-secure-installation`；旧教程里的 `mysqldump` 现在叫 `mariadb-dump`。
 
@@ -61,18 +61,18 @@ FLUSH PRIVILEGES;
 
 应用连不上数据库时，按这四层查（第 18 章的六层模型在这里收窄成「服务/监听/认证/库」四层）：
 
-| 层 | 现象 | 检查 |
-| --- | --- | --- |
-| 服务 | `Connection refused` | `systemctl status mariadb`、`journalctl -u mariadb` |
-| 监听 | 本机能连、外部不能 | `ss -tlnp \| grep 3306`，看是 `127.0.0.1` 还是 `0.0.0.0` |
-| 认证 | `Access denied for user` | 账号的 `host` 部分是否匹配来源；密码是否正确 |
-| 库 | `Unknown database` | 库名拼写、字符集、是否连到了另一个实例 |
+| 层   | 现象                     | 检查                                                     |
+| ---- | ------------------------ | -------------------------------------------------------- |
+| 服务 | `Connection refused`     | `systemctl status mariadb`、`journalctl -u mariadb`      |
+| 监听 | 本机能连、外部不能       | `ss -tlnp \| grep 3306`，看是 `127.0.0.1` 还是 `0.0.0.0` |
+| 认证 | `Access denied for user` | 账号的 `host` 部分是否匹配来源；密码是否正确             |
+| 库   | `Unknown database`       | 库名拼写、字符集、是否连到了另一个实例                   |
 
 **Arch 的默认配置并不限制监听地址**：`/etc/my.cnf.d/server.cnf` 里的 `bind-address` 是注释掉的，服务默认监听所有接口。只给本机用就必须显式加上：
 
 ```ini
 # /etc/my.cnf.d/server.cnf 的 [mariadb] 段
-bind-address = 127.0.0.1
+bind-address = localhost     # 同时覆盖 127.0.0.1 与 ::1；只写 127.0.0.1 时走 ::1 的客户端仍连不上
 ```
 
 要开远程访问则反过来：保留更宽的监听、建带来源的账号、放行防火墙（第 53 章），三件事缺一不可。第 53 章「把数据库绑回环」的建议就落在这行配置上。
@@ -90,9 +90,11 @@ mysql://app:密码@127.0.0.1:3306/app?charset=utf8mb4
 逻辑备份用 `mariadb-dump`，关键是「一致性 + 可重建」：
 
 ```bash
-mariadb-dump --single-transaction --routines --triggers --events app > app.sql
-mariadb-dump --all-databases --single-transaction > all.sql
+sudo mariadb-dump --single-transaction --routines --triggers --events app > app.sql
+sudo mariadb-dump --all-databases --single-transaction > all.sql
 ```
+
+普通用户直接跑 `mariadb-dump` 会以当前 OS 用户去连库、报 `Access denied`——用 `sudo` 走 root 的 `unix_socket` 认证（或显式给备份账号的 `-u/-p`）。
 
 - `--single-transaction` 在 InnoDB 上给出不锁表的一致性快照，**必须加**；
 - `--routines`/`--triggers`/`--events` 把存储过程、触发器、事件一并导出，漏了它们恢复出来的库是「缺胳膊少腿」的；
@@ -101,7 +103,7 @@ mariadb-dump --all-databases --single-transaction > all.sql
 恢复：
 
 ```bash
-mariadb -u root -p app < app.sql          # 先建空库再导入
+sudo mariadb app < app.sql                # 先建空库，再用 root 的 unix_socket 身份导入
 ```
 
 一致性验证是备份的一半：把 `app.sql` 导入到一个临时库（或临时实例），跑一次 `SELECT COUNT(*)` 与关键表校验，才算备份可用。只「生成文件」不验证，是每年都在发生的灾难模板。
@@ -116,7 +118,7 @@ sudo mariadb -e 'SHOW PROCESSLIST'            # 谁在连、在跑什么
 sudo journalctl -u mariadb -b --no-pager | tail -30
 ```
 
-两条最值得先调的参数（写在 `/etc/my.cnf.d/server.cnf` 的 `[mysqld]` 段）：`innodb_buffer_pool_size`（建议为可用内存的 50%–70%，这是影响性能最大的一个）与 `max_connections`（连接池上限，调大要配合内存）。改完 `systemctl restart mariadb`。
+两条最值得先调的参数（写在 `/etc/my.cnf.d/server.cnf` 的 `[mysqld]` 段）：`innodb_buffer_pool_size`（建议为可用内存的 50%–70%，这是影响性能最大的一个）与 `max_connections`（连接池上限，调大要配合内存）。改完 `systemctl restart mariadb`。另有一条升级纪律：**跨大版本升级后跑 `sudo mariadb-upgrade`** 重建系统表，否则新旧元数据不匹配会出各种怪错。
 
 ## 小结
 
@@ -133,7 +135,7 @@ sudo journalctl -u mariadb -b --no-pager | tail -30
 2. 两套认证（环境：WSL）：分别用 `sudo mariadb`、`mariadb -u root -p`、`mariadb -u root` 尝试登录，解释三次结果差异。
 3. 建库建号（环境：WSL）：按正文四条原则建 `app` 库与 `app@localhost` 账号，用 `mariadb -u app -p app -e 'SELECT 1'` 验证；再试 `mariadb -u app -p -h 127.0.0.1` 观察是否可连。
 4. 字符集验证（环境：WSL）：插入一条含 emoji 的记录，用 `SHOW VARIABLES LIKE 'character_set%'` 证明是 `utf8mb4`。
-5. 备份恢复（环境：WSL）：造 100 行数据 → `mariadb-dump` → 删除库 → 重建空库 → 导入 → 校验行数与内容一致；再试一次不带 `--single-transaction` 的导出，说明差别。
+5. 备份恢复（环境：WSL）：造 100 行数据 → `sudo mariadb-dump` → 删除库 → 重建空库 → `sudo mariadb app < app.sql` 导入 → 校验行数与内容一致；再试一次不带 `--single-transaction` 的导出，说明差别。
 6. 四层排查（环境：WSL）：停服务复现 `Connection refused`；用 `ss -tlnp` 确认当前监听地址并写出应加的 `bind-address` 配置行（不实际改）；建一个 host 不匹配的账号复现 `Access denied`，从日志里找到对应行。
 
 ## 自检
