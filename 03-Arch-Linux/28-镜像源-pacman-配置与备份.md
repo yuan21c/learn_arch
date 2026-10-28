@@ -1,0 +1,170 @@
+# 第 28 章 镜像源、pacman 配置与备份
+
+镜像源决定下载速度和可用性，pacman 配置决定使用体验，备份决定你能否在出错后回来。三件事都应该在动手改系统之前完成。
+
+> 本章目标：配置可靠的镜像源和 pacman 选项，掌握 WSL 导出/导入备份与恢复演练。
+> 对应 Wiki：[Mirrors](https://wiki.archlinux.org/title/Mirrors)
+
+## 备份 mirrorlist
+
+任何修改之前先留原文件：
+
+```bash
+sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+```
+
+`mirrorlist` 是纯文本，一行一个 `Server = ...`。注释行以 `#` 开头，pacman 按从上到下的顺序尝试。
+
+## 用 reflector 生成镜像列表
+
+```bash
+sudo reflector --country China --age 12 --protocol https --sort rate \
+  --save /etc/pacman.d/mirrorlist
+```
+
+`--age 12` 只选 12 小时内同步过的镜像，`--protocol https` 限定协议，`--sort rate` 按测速结果排序，`--save` 覆盖写入。参数会随版本变化，以 `man reflector` 和 Wiki 为准；`--country` 可按网络环境调整。
+
+更换镜像源后刷新数据库：
+
+```bash
+sudo pacman -Syyu
+```
+
+镜像变了，同步数据库的来源也变了，必须用 `-Syy` 强制重新下载索引。平时升级仍然只用 `-Syu`。
+
+## pacman.conf 常用选项
+
+```bash
+sudo cp /etc/pacman.conf /etc/pacman.conf.bak
+sudo vim /etc/pacman.conf
+```
+
+推荐打开：
+
+```ini
+Color
+ILoveCandy
+ParallelDownloads = 5
+```
+
+| 选项                | 作用             | 风险                         |
+| ------------------- | ---------------- | ---------------------------- |
+| `Color`             | 彩色输出         | 无                           |
+| `ILoveCandy`        | 进度条变成吃豆人 | 无                           |
+| `ParallelDownloads` | 并行下载         | 过高可能被镜像限速           |
+| `IgnorePkg`         | 升级时跳过指定包 | 长期部分升级，不建议随意使用 |
+
+`IgnorePkg` 的风险：被跳过的包不会随系统升级，依赖它的包可能因 ABI 变化而损坏。除非你清楚后果且有明确的短期理由，否则不要启用。
+
+## 包缓存
+
+pacman 下载的包保存在 `/var/cache/pacman/pkg/`。保留缓存的意义是升级出问题时可以从本地回滚，代价是占用磁盘。
+
+```bash
+# 每个包保留最近 3 个版本
+sudo paccache -r
+
+# 只预览，不删除
+sudo paccache -d
+```
+
+> **危险**：`paccache -r` 会删除旧包。确认你不再需要某些历史版本后再执行，尤其是刚升级或准备回滚时。
+
+## WSL 导出与导入
+
+备份 WSL 发行版在 Windows PowerShell 中完成。先关闭目标发行版：
+
+```powershell
+wsl --shutdown
+wsl --export Arch D:\backup\arch-2026-10-27.tar
+```
+
+导出得到的是一个 tar 文件，包含整个根文件系统。恢复：
+
+```powershell
+wsl --import Arch D:\wsl\arch D:\backup\arch-2026-10-27.tar
+```
+
+| 参数          | 含义             | 注意                   |
+| ------------- | ---------------- | ---------------------- |
+| `Arch`        | 发行版名称       | 导入同名会覆盖注册信息 |
+| `D:\wsl\arch` | 新实例的存放目录 | 目录应存在或可创建     |
+| tar 路径      | 备份文件         | 必须是有效的导出文件   |
+
+> **危险**：`wsl --import` 到已有同名发行版会替换其注册信息。导入前先 `wsl -l -v` 确认名称，必要时使用新名称（如 `ArchTest`）。
+
+导入后先 `whoami` 确认默认用户；如果 `/etc/wsl.conf` 中的默认用户不存在，会回退到 root。
+
+## 备份策略
+
+| 策略       | 做法                                        |
+| ---------- | ------------------------------------------- |
+| 大改前导出 | 改 pacman 配置、批量删包、折腾 AUR 前先导出 |
+| 保留多份   | 至少保留最近两次，避免备份本身损坏          |
+| 异地保存   | 复制到另一块磁盘或云端                      |
+| 定期演练   | 真正执行一次导入并验证                      |
+
+## 完整恢复演练
+
+按顺序做一次，确认备份真的可用：
+
+```bash
+# 1. 在 Arch 内创建测试文件
+echo "before-restore" | sudo tee /root/drill.txt
+```
+
+```powershell
+# 2. 导出当前状态
+wsl --shutdown
+wsl --export Arch D:\backup\arch-drill.tar
+```
+
+```bash
+# 3. 重新进入 Arch，故意删除测试文件
+sudo rm /root/drill.txt
+ls /root/drill.txt
+```
+
+```powershell
+# 4. 导入为临时实例，验证文件仍在，然后注销
+wsl --import ArchDrill D:\wsl\arch-drill D:\backup\arch-drill.tar
+wsl -d ArchDrill -u root -- cat /root/drill.txt
+wsl --terminate ArchDrill
+wsl --unregister ArchDrill
+```
+
+第 4 步用 `-u root` 直接以 root 读取文件，避免交互式提权。注销会删除临时实例：
+
+> **危险**：`wsl --unregister` 会永久删除该发行版及其数据。执行前确认名称是 `ArchDrill`，不要误删 `Arch`。
+
+## 小结
+
+- 改 mirrorlist 前先备份，用 reflector 生成后 `pacman -Syyu`。
+- `Color`、`ILoveCandy` 无风险，`IgnorePkg` 会制造部分升级。
+- 包缓存在 `/var/cache/pacman/pkg`，可用 `paccache` 管理。
+- 用 `wsl --export` / `wsl --import` 做整机备份，导入同名有覆盖风险。
+- 备份要保留多份并实际演练恢复。
+
+## 练习
+
+1. 备份 mirrorlist，用 reflector 生成新列表，比较前后镜像数量。
+2. 打开 `Color` 和 `ParallelDownloads`，用 `pacman-conf` 验证生效。
+3. 用 `du -sh /var/cache/pacman/pkg` 查看缓存大小，再用 `sudo paccache -d` 预览可清理的版本。
+4. 完成一次“导出 → 删除测试文件 → 导入临时实例 → 验证 → 注销”的演练。
+5. 写一份个人备份策略，说明触发条件、保存位置和保留份数。
+
+## 自检
+
+- [ ] 知道更换镜像源后为什么要 `-Syyu`
+- [ ] 能解释 `IgnorePkg` 的风险
+- [ ] 能找到并管理包缓存
+- [ ] 能独立完成 WSL 导出与导入
+- [ ] 知道 `wsl --import` 和 `--unregister` 的覆盖/删除风险
+- [ ] 做过一次真实的恢复演练
+
+## 参考
+
+- [Mirrors](https://wiki.archlinux.org/title/Mirrors)
+- [Pacman](https://wiki.archlinux.org/title/Pacman)
+- [WSL](https://wiki.archlinux.org/title/WSL)
+- [System maintenance](https://wiki.archlinux.org/title/System_maintenance)
