@@ -150,11 +150,11 @@ wsl --unregister ArchDrill
 
 ## 练习
 
-1. 备份 mirrorlist，用 reflector 生成新列表，比较前后镜像数量。
-2. 打开 `Color` 和 `ParallelDownloads`，用 `pacman-conf` 验证生效。
-3. 用 `du -sh /var/cache/pacman/pkg` 查看缓存大小，再用 `sudo paccache -d` 预览可清理的版本。
-4. 完成一次“导出 → 删除测试文件 → 导入临时实例 → 验证 → 注销”的演练。
-5. 写一份个人备份策略，说明触发条件、保存位置和保留份数。
+1. 备份 mirrorlist，用 reflector 生成新列表，比较前后镜像数量。（环境：阅读题）
+2. 打开 `Color` 和 `ParallelDownloads`，用 `pacman-conf` 验证生效。（环境：阅读题）
+3. 用 `du -sh /var/cache/pacman/pkg` 查看缓存大小，再用 `sudo paccache -d` 预览可清理的版本。（环境：阅读题）
+4. 完成一次“导出 → 删除测试文件 → 导入临时实例 → 验证 → 注销”的演练。（环境：阅读题）
+5. 写一份个人备份策略，说明触发条件、保存位置和保留份数。（环境：阅读题）
 
 ## 自检
 

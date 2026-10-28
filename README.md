@@ -2,8 +2,8 @@
 
 > 一本由易及难的 Linux 系统学习书：从命令、文件、权限，到进程、存储、网络，再到 Arch Linux 的包管理、systemd、构建与排障，最后把 Web、数据库等服务真正跑起来。
 
-版本：v2.0
-更新：2026-10-28
+版本：v2.1
+更新：2026-10-28（六维审查整改版）
 主要参考：[Arch Wiki](https://wiki.archlinux.org/title/Main_page)
 
 ---
