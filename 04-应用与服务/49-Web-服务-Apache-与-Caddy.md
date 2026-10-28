@@ -52,7 +52,7 @@ sudo apachectl configtest      # 输出 Syntax OK
 </VirtualHost>
 ```
 
-反代需要 `mod_proxy` 与 `mod_proxy_http`。**Arch 默认的 `httpd.conf` 里这两行 `LoadModule` 是注释状态**，直接写 `ProxyPass` 会报 `Invalid command 'ProxyPass'`——先取消这两行注释，`httpd -M | grep proxy` 确认模块已加载，`configtest` 通过再 reload。`ProxyPassReverse` 负责改写后端返回的重定向地址，漏了它会出现「登录后跳回 127.0.0.1:8000」。
+反代需要 `mod_proxy` 与 `mod_proxy_http`。**Arch 默认的 `httpd.conf` 里 `LoadModule proxy_module` 与 `LoadModule proxy_http_module` 两行是注释状态**，直接写 `ProxyPass` 会报 `Invalid command 'ProxyPass'`——先取消这两行注释，`httpd -M | grep proxy` 确认模块已加载，`configtest` 通过再 reload。`ProxyPassReverse` 负责改写后端返回的重定向地址，漏了它会出现「登录后跳回 127.0.0.1:8000」。
 
 改完统一 `configtest` → `systemctl reload httpd`。Apache 的 `reload` 会重启 worker，短暂抖动比 nginx 明显。
 
