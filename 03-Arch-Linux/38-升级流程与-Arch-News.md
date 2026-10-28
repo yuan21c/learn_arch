@@ -38,7 +38,7 @@ Arch News 要重点看标题中的包名与“manual intervention”字样。新
 sudo pacman -Syu
 ```
 
-不要执行 `pacman -Sy 包名`，那会只同步数据库而升级单个包，造成部分升级。换镜像源后可以用一次 `pacman -Syyu`，平时 `-Syu` 足够。
+不要执行 `pacman -Sy 包名`，那会只同步数据库而升级单个包，造成部分升级（唯一例外：keyring 引导更新，见下文「`archlinux-keyring` 过旧」一节，且随后必须立即 `-Su`）。换镜像源后可以用一次 `pacman -Syyu`，平时 `-Syu` 足够。
 
 输出按阶段出现，重点看这些位置：
 
@@ -151,11 +151,11 @@ makepkg -f -si
 
 ## 练习
 
-1. 在升级前执行 `checkupdates` 和 `pacman -Qu`，比较两者输出是否一致。
-2. 阅读最近一期 Arch News，写清它影响哪些包、需要什么操作。
-3. 导出一次 WSL 备份，然后完成一次 `pacman -Syu`，记录输出中的冲突与 `.pacnew`。
-4. 用 `pacdiff -o` 列出系统中的待处理配置文件，解释每一个的来源。
-5. 用 `pacman -Qm` 找出 AUR 包，挑一个检查它是否依赖近期升级过的库。
+1. 在升级前执行 `checkupdates` 和 `pacman -Qu`，比较两者输出是否一致。（环境：WSL）
+2. 阅读最近一期 Arch News，写清它影响哪些包、需要什么操作。（环境：WSL）
+3. 导出一次 WSL 备份，然后完成一次 `pacman -Syu`，记录输出中的冲突与 `.pacnew`。（环境：WSL）
+4. 用 `pacdiff -o` 列出系统中的待处理配置文件，解释每一个的来源。（环境：WSL）
+5. 用 `pacman -Qm` 找出 AUR 包，挑一个检查它是否依赖近期升级过的库。（环境：WSL）
 
 ## 自检
 

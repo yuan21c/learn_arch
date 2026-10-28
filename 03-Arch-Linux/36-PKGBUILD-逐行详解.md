@@ -28,6 +28,15 @@
 | `sha256sums`   | 源码校验和        | 与 `source` 顺序逐项对应，`SKIP` 表示跳过              |
 | `validpgpkeys` | 可信 PGP 指纹     | 完整 40 位指纹，用于验证签名源码                       |
 
+一个 PKGBUILD 可以产出多个包：`pkgbase` 写总名，每个子包配一个 `package_子包名()`；VCS（git/svn）源的包还需要 `pkgver()` 从仓库动态生成版本。另有三个常用字段：`backup=('etc/mytools.conf')` 把配置列入保护（升级时生成 `.pacnew`、不覆盖你的修改，第 34 章）；`install=` 指定安装钩子脚本（post_install 等）；`options=('!strip')` 控制打包行为（`!strip` 保留调试符号）。
+
+```bash
+pkgbase=mytools                        # 拆分包必须写 pkgbase
+pkgname=(mytools-cli mytools-doc)      # 一次构建产出两个包
+package_mytools-cli() { depends=('glibc'); install -Dm755 cli "$pkgdir/usr/bin/mytools"; }
+package_mytools-doc()  { install -Dm644 doc.1 "$pkgdir/usr/share/man/man1/mytools.1"; }
+```
+
 `pkgver`、`pkgrel`、`epoch` 共同决定版本比较结果。例如 `epoch=1`、`pkgver=2.0.1`、`pkgrel=3` 的完整版本是 `1:2.0.1-3`：先比 epoch，再比版本，最后比 pkgrel。
 
 ## 依赖与包关系
@@ -147,11 +156,11 @@ makepkg --printsrcinfo > .SRCINFO
 
 ## 练习
 
-1. 把示例脚本改成输出当前用户与时间，重新构建并安装。
-2. 给 PKGBUILD 增加 `optdepends`，用 `pacman -Qi hello-arch` 查看是否显示。
-3. 删除 `sha256sums` 中的 `SKIP`，用 `updpkgsums` 生成真实校验和后重建。
+1. 把示例脚本改成输出当前用户与时间，重新构建并安装。（环境：WSL）
+2. 给 PKGBUILD 增加 `optdepends`，用 `pacman -Qi hello-arch` 查看是否显示。（环境：WSL）
+3. 删除 `sha256sums` 中的 `SKIP`，用 `updpkgsums` 生成真实校验和后重建。（环境：WSL）
 4. `$pkgdir` 落点对比（环境：WSL）：把安装目标分别写成 `"$pkgdir/usr/bin/hello-arch"` 与 `/tmp/pkgroot/usr/bin/hello-arch`（一次性 DESTDIR）各构建一次，用 `find /tmp/pkgroot` 与 `tar tf` 看两者的差别，理解 `$pkgdir` 是打包沙箱。**不要**去掉 `$pkgdir` 让文件直落真实 `/usr/bin`：普通用户会权限拒绝，特权执行则污染系统、卸载无法追踪。
-5. 用 `namcap PKGBUILD` 检查示例，解释每条提示的含义。
+5. 用 `namcap PKGBUILD` 检查示例，解释每条提示的含义。（环境：WSL）
 
 ## 自检
 

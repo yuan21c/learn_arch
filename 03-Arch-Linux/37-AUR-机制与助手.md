@@ -19,6 +19,8 @@ AUR 页面上的“包”只是构建脚本的入口。构建参数见 [第 35 �
 
 ## 标准手动流程
 
+网页侧的流程：在 [aur.archlinux.org](https://aur.archlinux.org) 搜索包名 → 看 Package Details 里的上游 URL 与依赖 → `git clone https://aur.archlinux.org/<pkg>.git` 后走下面的标准手动流程；页面评论区常有构建失败的最新线索。
+
 准备工具（`base-devel` 与 `git` 是前提）：
 
 ```bash
@@ -76,7 +78,7 @@ pacman -Ss '^paru$'
 pacman -Ss '^yay$'
 ```
 
-若只存在于 AUR，按 3.2 节手动构建：
+若只存在于 AUR，按本章「标准手动流程」：
 
 ```bash
 git clone https://aur.archlinux.org/paru.git
@@ -146,11 +148,11 @@ AUR 包构建失败时，先看 `makepkg` 输出的第一条 `ERROR`；再读 AU
 
 ## 练习
 
-1. 手动从 AUR 构建一个不涉及系统关键组件的小包，全程不使用助手。
-2. 在 AUR 页面找到该包的 `PKGBUILD`，指出 `source` 的域名和校验和来源。
-3. 用 `pacman -Qm` 列出系统中的非官方包，为每个包写一句用途说明。
-4. 升级一个 AUR 包，先用 `git diff` 阅读变更，再执行 `makepkg -si`。
-5. 找一个依赖其他 AUR 包的包，写出手动解决依赖的顺序。
+1. 手动从 AUR 构建一个不涉及系统关键组件的小包，全程不使用助手。（环境：WSL）
+2. 在 AUR 页面找到该包的 `PKGBUILD`，指出 `source` 的域名和校验和来源。（环境：WSL）
+3. 用 `pacman -Qm` 列出系统中的非官方包，为每个包写一句用途说明。（环境：WSL）
+4. 升级一个 AUR 包，先用 `git diff` 阅读变更，再执行 `makepkg -si`。（环境：WSL）
+5. 找一个依赖其他 AUR 包的包，写出手动解决依赖的顺序。（环境：WSL）
 
 ## 自检
 
