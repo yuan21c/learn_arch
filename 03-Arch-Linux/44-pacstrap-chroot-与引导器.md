@@ -33,6 +33,10 @@ sudo pacman -Sy --needed archlinux-keyring
 
 `pacstrap` 把包安装到指定挂载点，而不是当前 Live 系统：
 
+## 选择镜像源（pacstrap 之前）
+
+Live 环境先换到快镜像，否则 pacstrap 可能慢到超时：`reflector --country China --latest 20 --sort rate --save /etc/pacman.d/mirrorlist`（没有 reflector 就手编该文件），随后 `pacman -Sy` 验证索引能拉下来。装完系统再按第 28 章精调。
+
 ```bash
 pacstrap -K /mnt base linux linux-firmware
 ```
