@@ -82,7 +82,18 @@ systemd=true
 
 **检查**：Linux 内 `ss -tlnp` 确认服务监听；Windows 侧 `curl http://localhost:8000`。WSL2 默认通过 localhost 转发，但局域网访问需要额外配置。
 
-**修复**：从局域网访问时，在管理员 PowerShell 添加 portproxy 与防火墙规则，目标地址用 `wsl hostname -I` 获取；WSL IP 会变化，重启后需更新。Windows 11 较新版本可改用 `.wslconfig` 的 `networkingMode=mirrored`。只转发必要端口，规则用完删除。
+**修复**：从局域网访问时，在管理员 PowerShell 加 portproxy 与防火墙规则（环境：Windows PowerShell）：
+
+```powershell
+$wslIp = (wsl hostname -I).Trim().Split(' ')[0]   # WSL IP 会变，重启后要重取
+netsh interface portproxy add v4tov4 listenport=8080 listenaddress=0.0.0.0 connectport=8080 connectaddress=$wslIp
+New-NetFirewallRule -DisplayName 'WSL-8080' -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+# 用完清理：
+netsh interface portproxy delete v4tov4 listenport=8080 listenaddress=0.0.0.0
+Remove-NetFirewallRule -DisplayName 'WSL-8080'
+```
+
+Windows 11 较新版本可改用 `.wslconfig` 的 `networkingMode=mirrored`。只转发必要端口，规则用完删除。
 
 **预防**：开发服务默认绑定 `127.0.0.1`；确实需要局域网访问时再显式绑定 `0.0.0.0` 并限制来源。
 
@@ -140,7 +151,7 @@ wsl --import Arch-test D:\wsl\arch-test D:\backup\arch-2026-10-27.tar
 2. 在 `/mnt/c` 与 `~/` 各创建一个小文件，比较 `chmod` 行为与读写速度。
 3. 查看 `/etc/resolv.conf` 的生成方式，写出关闭自动生成并重启 WSL 的步骤。
 4. 用 `type -a python` 检查 PATH 来源，关闭 `appendWindowsPath` 后复测。
-5. 导出一次 WSL，导入为测试发行版，修正默认用户后删除测试副本。
+5. 导出一次 WSL，导入为测试发行版，修正默认用户后用 `wsl --unregister Arch-test` 删除测试副本（环境：Windows PowerShell，**危险**：删除整个虚拟磁盘——先 `wsl -l -v` 核对名称）。
 
 ## 自检
 
