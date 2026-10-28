@@ -80,7 +80,7 @@ Description=Clean pacman cache
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/paccache -rk2
+ExecStart=/usr/bin/paccache -rk2    # 保留 2 个最新版本，其余旧包缓存被删除
 ```
 
 `/etc/systemd/system/paccache-clean.timer`：

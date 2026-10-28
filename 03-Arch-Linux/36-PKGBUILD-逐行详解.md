@@ -150,7 +150,7 @@ makepkg --printsrcinfo > .SRCINFO
 1. 把示例脚本改成输出当前用户与时间，重新构建并安装。
 2. 给 PKGBUILD 增加 `optdepends`，用 `pacman -Qi hello-arch` 查看是否显示。
 3. 删除 `sha256sums` 中的 `SKIP`，用 `updpkgsums` 生成真实校验和后重建。
-4. 故意把 `package()` 里的 `$pkgdir` 去掉，观察文件落点和包内容，再恢复。
+4. `$pkgdir` 落点对比（环境：WSL）：把安装目标分别写成 `"$pkgdir/usr/bin/hello-arch"` 与 `/tmp/pkgroot/usr/bin/hello-arch`（一次性 DESTDIR）各构建一次，用 `find /tmp/pkgroot` 与 `tar tf` 看两者的差别，理解 `$pkgdir` 是打包沙箱。**不要**去掉 `$pkgdir` 让文件直落真实 `/usr/bin`：普通用户会权限拒绝，特权执行则污染系统、卸载无法追踪。
 5. 用 `namcap PKGBUILD` 检查示例，解释每条提示的含义。
 
 ## 自检
