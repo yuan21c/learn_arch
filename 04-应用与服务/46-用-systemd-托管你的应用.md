@@ -139,7 +139,7 @@ systemctl --user enable --now dev
 journalctl --user -u dev
 ```
 
-默认情况下用户级服务在你**登录期间**运行，退出登录就停。要让它在没登录时也跑：
+默认情况下用户级服务在你**登录期间**运行，退出登录就停。要让它在没登录时也跑（WSL 里先确认 systemd 已启用，见第 26 章）：
 
 ```bash
 loginctl enable-linger "$USER"

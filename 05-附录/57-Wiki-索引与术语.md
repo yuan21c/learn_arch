@@ -34,14 +34,48 @@
 | 进程 | Processes、Signals、Scheduling | 第 13 章 | 深讲 |
 | 存储 | LVM、Swap、Disk cloning、Dm-crypt | 第 16 章 | 深讲（LVM/加密精讲） |
 | 网络 | Network configuration、OpenSSH、Nftables、DNS | 第 18 章 | 深讲/精讲 |
-| 安全 | Security、Firewalls、AppArmor | 第 53 章 | 精讲 + 索引 |
+| 安全 | Security、Firewalls、AppArmor | 第 53 章 | 深讲（低频独立章） |
 | Web 与数据库 | nginx、Apache、MySQL/MariaDB、PostgreSQL | 第 47-51 章 | 深讲 |
 | 容器与虚拟化 | Docker、Podman、libvirt | 第 52 章 | 深讲/精讲 |
-| 图形与桌面 | Xorg、Wayland、Display manager、GPU | 第 54 章 | 精讲（VM 实践） |
-| 多媒体、打印、电源 | Multimedia、CUPS、Power management、输入法 | 第 55 章 | 精讲 + 索引 |
-| 其余长尾 | 浏览器、办公、音频视频、蓝牙等 | 本章的索引（不展开） | 索引 |
+| 图形与桌面 | Xorg、Wayland、Display manager、GPU | 第 54 章 | 深讲（低频独立章，VM 实践） |
+| 多媒体、打印、电源 | Multimedia、CUPS、Power management、输入法 | 第 55 章 | 深讲（低频独立章）+ 长尾索引 |
+| 蓝牙 | Bluetooth（A2DP 在索引） | 第 55 章 | 精讲 + A2DP 索引 |
+| 其余长尾 | 浏览器、办公、音频视频等 | 本章的索引（不展开） | 索引 |
 
 清单里没有的主题怎么办？两个入口：Wiki 顶部的搜索框（按关键词搜，不要按目录逐层点），以及页面底部的 `Related articles`（顺着相邻主题走）。两者都比「从头读分类树」高效。
+
+
+## 术语补充
+
+| 术语 | 一句话 |
+| --- | --- |
+| SSH | 加密远程登录与隧道协议（第 18、53 章） |
+| sudo | 按 `/etc/sudoers` 条目代理执行的提权工具（第 9、27 章） |
+| systemd | 现代 init/服务管理器，PID 1（第 21、32-33 章） |
+| target | systemd 的运行级别分组单元，如 `multi-user.target`（第 32 章） |
+| AppArmor | 按路径限制程序资源访问的强制访问控制（第 53 章） |
+| X11 / Wayland | 两代显示服务器协议（第 54 章） |
+| PipeWire | 当前桌面常用的音频服务栈（第 55 章） |
+| CUPS | Linux 打印服务（第 55 章） |
+
+## 精简逐页索引
+
+| 你要找 | 打开 |
+| --- | --- |
+| 命令怎么用 | 第 56 章速查表 |
+| 术语含义 | 本章术语表 |
+| 进程/信号 | 第 13 章 |
+| 脚本与调试 | 第 14-15 章 |
+| 分区/文件系统/swap | 第 16-17 章 |
+| 网络与 SSH/防火墙 | 第 18 章 |
+| pacman 全部用法 | 第 29-31 章 |
+| systemd 与日志 | 第 32-33、46 章 |
+| 打包与 AUR | 第 35-37 章 |
+| 安装与启动/Secure Boot | 第 41-45 章 |
+| Web/数据库 | 第 47-51 章 |
+| 容器与虚拟化 | 第 52 章 |
+| 安全加固 | 第 53 章 |
+| 桌面/多媒体/打印 | 第 54-55 章 |
 
 ## 术语表
 
