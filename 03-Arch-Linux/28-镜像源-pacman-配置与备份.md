@@ -27,7 +27,8 @@ sudo reflector --country China --age 12 --protocol https --sort rate \
 更换镜像源后刷新数据库：
 
 ```bash
-sudo pacman -Syyu
+sudo pacman -Syy   # 先强制刷新索引
+sudo pacman -Syu   # 再完整升级
 ```
 
 镜像变了，同步数据库的来源也变了，必须用 `-Syy` 强制重新下载索引。平时升级仍然只用 `-Syu`。
@@ -75,6 +76,8 @@ sudo paccache -d
 备份 WSL 发行版在 Windows PowerShell 中完成。先关闭目标发行版：
 
 ```powershell
+wsl -l -v                              # 先确认发行版的准确名称
+New-Item -ItemType Directory D:\backup  # 备份目录不存在时先建
 wsl --shutdown
 wsl --export Arch D:\backup\arch-2026-10-27.tar
 ```
@@ -87,11 +90,11 @@ wsl --import Arch D:\wsl\arch D:\backup\arch-2026-10-27.tar
 
 | 参数          | 含义             | 注意                   |
 | ------------- | ---------------- | ---------------------- |
-| `Arch`        | 发行版名称       | 导入同名会覆盖注册信息 |
+| `Arch`        | 发行版名称       | 与已有实例同名通常报错（个别版本会替换注册信息，以 Wiki 为准） |
 | `D:\wsl\arch` | 新实例的存放目录 | 目录应存在或可创建     |
 | tar 路径      | 备份文件         | 必须是有效的导出文件   |
 
-> **危险**：`wsl --import` 到已有同名发行版会替换其注册信息。导入前先 `wsl -l -v` 确认名称，必要时使用新名称（如 `ArchTest`）。
+> **危险**：导入前先 `wsl -l -v` 确认名称；同名导入通常报错，个别版本会替换注册信息——稳妥做法是换新名称（如 `ArchTest`）。确需覆盖时先 `wsl --unregister <名称>`，它会**删除该实例的整个虚拟磁盘**（第 25 章）。
 
 导入后先 `whoami` 确认默认用户；如果 `/etc/wsl.conf` 中的默认用户不存在，会回退到 root。
 
