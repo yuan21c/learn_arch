@@ -36,7 +36,7 @@ cat /etc/os-release     # 发行版自我标识
 ```text
 $ uname -r
 6.6.87.2-microsoft-standard-WSL2
-$ grep PRETTY_NAME /etc/os-release
+$ grep PRETTY_NAME /etc/os-release   # grep 与管道的完整用法见第 4 章
 PRETTY_NAME="Arch Linux"
 ```
 
@@ -113,7 +113,7 @@ Linux 桌面完全是用户空间的一层，内核并不知道你用的是 GNOM
 ## 练习
 
 1. 运行 `uname -r` 和 `cat /etc/os-release`，写下内核版本与发行版标识，确认两者描述的是不同层次（环境：WSL）。
-2. 运行 `ls /usr/bin | wc -l` 统计系统命令数量，挑出三个你没用过的，先猜用途再用 `--help` 验证（环境：WSL）。
+2. 运行 `ls /usr/bin | wc -l` 统计系统命令数量（管道与 `wc` 的细节见第 4 章），挑出三个你没用过的，先猜用途再用 `--help` 验证（环境：WSL）。
 3. 在图形会话里运行 `echo $XDG_CURRENT_DESKTOP`；如果你在 WSL 中，记录它的空值并说明原因（环境：WSL）。
 4. 打开参考中的「Arch compared to other distributions」，任选一个发行版，摘录它与 Arch 的三条差异并归类到本章的四个维度。
 

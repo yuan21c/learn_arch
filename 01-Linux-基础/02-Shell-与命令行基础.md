@@ -80,7 +80,7 @@ echo 'HOME=$HOME'   # 单引号：一律字面量
 echo "HOME=$HOME"   # 双引号：变量照常展开
 ```
 
-两条容易踩的规则：模式匹配不到任何文件时，bash 把模式原样传给命令（于是 `ls nofile-xyz` 报「No such file」，报错来自 `ls` 而不是 shell）；zsh 则直接中止并提示 `no matches found`——同一份脚本在不同 shell 下行为可能不同，本书命令示例以 bash 为准。
+三条容易踩的规则：`*` 默认不匹配以 `.` 开头的隐藏文件（`ls *` 看不到 `.bashrc`，要 `-a` 或 `.*`）；模式匹配不到任何文件时，bash 把模式原样传给命令（`echo no-such-*.txt` 会原样输出 `no-such-*.txt`；若命令是 `ls no-such-*.txt`，报「No such file」的是 `ls` 而不是 shell）；zsh 则直接中止并提示 `no matches found`——同一份脚本在不同 shell 下行为可能不同，本书命令示例以 bash 为准。
 
 ## 查找帮助：man、--help 与 whatis
 
@@ -127,7 +127,7 @@ Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
    ```
 
 2. 运行 `cd /bin && pwd && pwd -P`，解释两个输出为什么不同，再用 `cd -` 返回（环境：WSL）。
-3. 用 `ls -lFah ~ | head -8` 逐列读懂长格式输出：首字符、权限、链接数、大小、时间分别是什么（环境：WSL）。
+3. 用 `ls -lFah ~ | head -8` 认清长格式的列位置：首字符、权限位、链接数、大小、时间各占哪列（环境：WSL；权限九位的读法见第 6 章，本题只认列位置）。
 4. 运行 `ls --help | head -20`，找一个你会用的选项并当场验证；再运行 `whatis ls`（环境：WSL）。
 5. 在交互 shell 中按 `↑` 翻到本章敲过的某条命令，运行 `history 5`，然后用 `Ctrl-R` 搜出含 `pwd` 的一条（环境：WSL）。
 
