@@ -61,7 +61,7 @@ host    all       all   ::1/128       scram-sha-256
 ```
 
 - `local` 是 Unix socket 连接，`peer` 表示「操作系统用户名必须等于数据库角色名」——所以 `sudo -u postgres psql` 能免密，而 `psql -U app` 不行。
-- `host` 是 TCP 连接，现代 `initdb` 默认用 `scram-sha-256`（密码挑战应答，比 `md5` 安全）。
+- `host` 是 TCP 连接，METHOD 建议写 `scram-sha-256`（密码挑战应答，比 `md5` 安全）。注意它只是 `password_encryption` 的默认**存储**算法；不带 `--auth` 的 `initdb` 生成的 `pg_hba.conf` 仍是 `trust`——别把两者混为一谈。
 - **改完要 `systemctl reload postgresql`**，不是 restart。
 
 监听地址由 `postgresql.conf` 的 `listen_addresses` 控制，默认 `'localhost'`。开远程访问同样要三件套：改 `listen_addresses`、在 `pg_hba.conf` 加带网段的 `host` 规则、放行防火墙。
