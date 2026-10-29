@@ -44,7 +44,7 @@ ls is /sbin/ls
 ls is /bin/ls
 ```
 
-四个路径其实指向同一个程序（`/usr/sbin`、`/sbin` 在 Arch 上是链接），但顺序暴露了 PATH 的排列。三个配套工具：`command -v 名字` 输出**第一个**匹配（脚本里判断「程序存在吗」用它）；`type` 区分别名/函数/内置/外部程序；`hash` 是 bash 的查找缓存——它记住上次执行的位置（实测 `hash -r` 后显示 `hash table empty`），程序路径变动后用 `hash -r` 清缓存。
+四个路径其实指向同一个程序（`/usr/sbin`、`/sbin` 在 Arch 上是链接），但顺序暴露了 PATH 的排列。三个配套工具：`command -v 名字` 输出**第一个**匹配（脚本里判断「程序存在吗」用它）；`type` 区分别名/函数/内置/外部程序；`hash` 是 bash 的查找缓存——它记住上次执行的位置（`hash -r` 清缓存、无输出，再运行 `hash` 才显示 `hash table empty`），程序路径变动后用 `hash -r` 清缓存。
 
 PATH 的四个事故多发点：
 
@@ -57,14 +57,14 @@ PATH 的四个事故多发点：
 
 把上面的知识排成一张出诊表（精讲）：
 
-| 症状                      | 可能原因                      | 处置                                 |
-| ------------------------- | ----------------------------- | ------------------------------------ |
-| `command not found`       | 未安装 / PATH 错 / 只有 alias | `command -v` 确认；`echo $PATH` 检查 |
-| 新装命令不生效            | hash 缓存或 PATH 未刷新       | `hash -r`，或重开 shell              |
-| 脚本里 alias 报 not found | 非交互 shell 默认不展开 alias | `shopt -s expand_aliases`（见下文）  |
-| 子进程读不到变量          | 忘了 `export`                 | `export 变量名`                      |
+| 症状                      | 可能原因                      | 处置                                      |
+| ------------------------- | ----------------------------- | ----------------------------------------- |
+| `command not found`       | 未安装 / PATH 错 / 只有 alias | `command -v` 确认；`echo $PATH` 检查      |
+| 新装命令不生效            | hash 缓存或 PATH 未刷新       | `hash -r`，或重开 shell                   |
+| 脚本里 alias 报 not found | 非交互 shell 默认不展开 alias | `shopt -s expand_aliases`（见下文）       |
+| 子进程读不到变量          | 忘了 `export`                 | `export 变量名`                           |
 | `sudo` 下找不到命令       | `secure_path` 重置            | 装入 `/usr/local/bin` 等 secure_path 目录 |
-| 提示符/中文显示异常       | `PS1`、`LANG` 被启动文件改坏  | 从启动文件顺序排查（下一节）         |
+| 提示符/中文显示异常       | `PS1`、`LANG` 被启动文件改坏  | 从启动文件顺序排查（下一节）              |
 
 ## shell 启动文件：登录与非登录
 
@@ -74,15 +74,15 @@ shell 启动时读哪些文件，取决于两个正交的维度：**登录 shell
 - **交互非登录 shell**：先读 `/etc/bash.bashrc`，再读 `~/.bashrc`。实测对照（`HOME` 指向空目录，隔离个人配置）：
 
 ```text
-$ env -i HOME=/tmp/e8 bash --norc -i -c 'echo [$PS1]'
+$ env -i HOME=/tmp/lab10 bash --norc -i -c 'echo [$PS1]'
 [\s-\v\$ ]            # --norc：什么都不读，bash 出厂提示符
-$ env -i HOME=/tmp/e8 bash -i -c 'echo [$PS1]'
+$ env -i HOME=/tmp/lab10 bash -i -c 'echo [$PS1]'
 [[\u@\h \W]\$ ]        # 读了 /etc/bash.bashrc：Arch 默认提示符
 ```
 
 - **非交互 shell**（脚本）：默认不读以上任何文件，需要时用 `BASH_ENV` 变量指定一个要先执行的文件（细节以 [Bash](https://wiki.archlinux.org/title/Bash) 为准）。
 
-改了配置怎么生效？两条路：`source 文件`（或等价的 POSIX 写法 `. 文件`）在**当前 shell** 立即执行它（bash 帮助原话 “Execute commands from a file in the current shell”），或开一个新 shell 让启动流程重走一遍。启动文件速查：**交互+登录**读 `/etc/profile` → `~/.bash_profile`→`~/.bash_login`→`~/.profile`（首个存在者）→ `~/.bashrc`；**交互+非登录**只读 `~/.bashrc`；**非交互**（脚本）读 `BASH_ENV` 指向的文件，通常没有。`sudo -i`、`su -` 会以目标用户身份**重置整个环境**重走登录流程，`sudo 命令`/`su 用户` 则保留大部分当前变量。系统级入口还有三个：`/etc/environment`（`pam_env` 读取）、`/etc/security/pam_env.conf`、`~/.config/environment.d/*.conf`（systemd 用户会话）。惯例分工：别名、提示符、`PATH` 追加写 `~/.bashrc`；只想要登录时执行一次的放 `~/.bash_profile`。zsh、fish 各有自己的一套启动文件（如 zsh 的 `~/.zshrc`），以对应 Wiki 为准。
+改了配置怎么生效？两条路：`source 文件`（或等价的 POSIX 写法 `. 文件`）在**当前 shell** 立即执行它（bash 帮助原话 "Execute commands from a file in the current shell"），或开一个新 shell 让启动流程重走一遍。启动文件速查：**交互+登录**读 `/etc/profile` → `~/.bash_profile`→`~/.bash_login`→`~/.profile`（首个存在者）→ `~/.bashrc`；**交互+非登录**先读 `/etc/bash.bashrc`，再读 `~/.bashrc`；**非交互**（脚本）读 `BASH_ENV` 指向的文件，通常没有。`sudo -i`、`su -` 会以目标用户身份**重置整个环境**重走登录流程；`su 用户`（不带 `-`）基本保留当前变量，`sudo 命令` 默认 `env_reset`、只保留 `env_keep` 白名单。系统级入口还有三个：`/etc/environment`（`pam_env` 读取）、`/etc/security/pam_env.conf`、`~/.config/environment.d/*.conf`（systemd 用户会话）。惯例分工：别名、提示符、`PATH` 追加写 `~/.bashrc`；只想要登录时执行一次的放 `~/.bash_profile`。zsh、fish 各有自己的一套启动文件（如 zsh 的 `~/.zshrc`），以对应 Wiki 为准。
 
 ## alias 与提示符
 
@@ -93,7 +93,7 @@ alias 是交互利器：`alias ll='ls -l'` 定义，`alias` 列出全部，`unal
 # 脚本 t1.sh：开头加 shopt -s expand_aliases  → 正常输出 hello（实测）
 ```
 
-交互 shell 默认开启 alias 展开，脚本（非交互）默认关闭：写进脚本要在使用之前加 `shopt -s expand_aliases`。另一条实用结论：名字的解析顺序是 **alias → 函数 → 内置命令 → PATH 文件**，`type cd` 实测输出 `cd is a shell builtin`、`type -a ls` 会先列 alias 再列 PATH 文件（只想看 PATH 用 `command -v ls`），各自印证了所处的层级——这也是第 2 章 `cd` 不需要路径的原因。
+交互 shell 默认开启 alias 展开，脚本（非交互）默认关闭：写进脚本要在使用之前加 `shopt -s expand_aliases`。另一条实用结论：名字的解析顺序是 **alias → 函数 → 内置命令 → PATH 文件**，`type cd` 实测输出 `cd is a shell builtin`、`type -a ls` 会先列 alias 再列 PATH 文件（只想看 PATH 用 `type -P ls` 或 `which ls`——别名存在时 `command -v` 会输出 alias），各自印证了所处的层级——这也是第 2 章 `cd` 不需要路径的原因。
 
 提示符由 `PS1` 控制，Arch 的默认样式（`[\u@\h \W]\$ `）不是 bash 出厂值，而是 `/etc/bash.bashrc` 判断后改写的——上面的实测对照正是它在起作用。自定义提示符（颜色、git 分支、时间）写进 `~/.bashrc`，成法见 [Bash/Prompt customization](https://wiki.archlinux.org/title/Bash/Prompt_customization)。
 
@@ -101,15 +101,15 @@ alias 是交互利器：`alias ll='ls -l'` 定义，`alias` 列出全部，`unal
 
 当前用什么 shell，记录在 `/etc/passwd` 的第七字段（实测本机 arch 用户为 `/usr/bin/zsh`），普通用户改自己的用 `chsh`，管理员改别人的用 `usermod -s`——都是第 8 章的内容。选型一览：
 
-| shell            | 一句话定位                                      |
-| ---------------- | ----------------------------------------------- |
-| `bash`           | 事实标准，本书示例以它为准                      |
-| `zsh`            | 兼容 bash 的增强版，插件生态繁荣（本机默认）    |
-| `dash`           | 极轻量的 POSIX shell，Debian 常拿它当 `/bin/sh` |
-| `fish`           | 开箱即用的现代交互体验，语法自成一派            |
-| `nushell`        | 用结构化数据（表/列）重新设计的实验派           |
-| `oil`(Oil Shell) | 兼容 bash 的 POSIX 化重构                       |
-| `powershell`     | 微软的跨平台对象式 shell                        |
+| shell            | 一句话定位                                                      |
+| ---------------- | --------------------------------------------------------------- |
+| `bash`           | 事实标准，本书示例以它为准                                      |
+| `zsh`            | 兼容 bash 的增强版，插件生态繁荣（本机默认）                    |
+| `dash`           | 极轻量的 POSIX shell，Debian 常拿它当 `/bin/sh`                 |
+| `fish`           | 开箱即用的现代交互体验，语法自成一派                            |
+| `nushell`        | 用结构化数据（表/列）重新设计的实验派                           |
+| `oil`(Oil Shell) | Oil Shell（项目现名 Oils，oils.pub），兼容 bash 的 POSIX 化重构 |
+| `powershell`     | 微软的跨平台对象式 shell                                        |
 
 换 shell 只影响交互体验；写脚本与自动化仍以 `bash` 为准（`#!/bin/bash`），保证可移植。
 
@@ -136,15 +136,15 @@ alias 是交互利器：`alias ll='ls -l'` 定义，`alias` 列出全部，`unal
 3. 实测启动文件（环境：WSL）：
 
    ```bash
-   mkdir -p /tmp/e8
-   env -i HOME=/tmp/e8 bash --norc -i -c 'echo [$PS1]'
-   env -i HOME=/tmp/e8 bash -i -c 'echo [$PS1]'
-   echo 'export LAB8=from-rc' > /tmp/e8/.bashrc
-   env -i HOME=/tmp/e8 bash -i -c 'echo $LAB8'
+   mkdir -p /tmp/lab10
+   env -i HOME=/tmp/lab10 bash --norc -i -c 'echo [$PS1]'
+   env -i HOME=/tmp/lab10 bash -i -c 'echo [$PS1]'
+   echo 'export LAB8=from-rc' > /tmp/lab10/.bashrc
+   env -i HOME=/tmp/lab10 bash -i -c 'echo $LAB8'
    ```
 
-   前两行对比确认 `/etc/bash.bashrc` 被读取，第三行验证 `~/.bashrc` 是你自己的入口；再用 `env -i HOME=/tmp/e8 bash -lc 'echo $PATH'` 观察登录式会读 `/etc/profile`。
-4. alias 的脚本限制（环境：WSL）：把 `alias hi='echo hello'` 与 `hi` 两行写进 `/tmp/e8/t2.sh` 用 `bash t2.sh` 运行（预期 127），复制为 `t1.sh` 并在首行加 `shopt -s expand_aliases` 再运行，对比结果。
+   前两行对比确认 `/etc/bash.bashrc` 被读取，第三行验证 `~/.bashrc` 是你自己的入口；再用 `env -i HOME=/tmp/lab10 bash -lc 'echo $PATH'` 观察登录式会读 `/etc/profile`。
+4. alias 的脚本限制（环境：WSL）：把 `alias hi='echo hello'` 与 `hi` 两行写进 `/tmp/lab10/t2.sh` 用 `bash t2.sh` 运行（预期 127），复制为 `t1.sh` 并在首行加 `shopt -s expand_aliases` 再运行，对比结果。
 5. 排查表实战（环境：WSL）：`bash -c 'definitely-not-a-cmd'` 记录报错与 `$?`；`type cd`、`type -a ls` 判定解析层级；`sudo -l | grep secure_path` 找出 sudo 的固定 PATH，解释为什么 `~/.local/bin` 里的工具在 `sudo` 下会失踪。
 
 ## 自检

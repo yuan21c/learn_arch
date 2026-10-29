@@ -1,6 +1,6 @@
 # 第 35 章 makepkg 工作流
 
-`makepkg` 是 Arch 的本地打包工具：它读取 `PKGBUILD`，下载源码、校验、编译，最后生成可用 `pacman` 安装的包文件。理解它与 `pacman` 的分工，是使用 AUR 和制作自己软件包的前提。先跑通一个最小 PKGBUILD（照抄即可，第 36 章再逐行解释）：
+`makepkg` 是 Arch 的本地打包工具：它读取 `PKGBUILD`，下载源码、校验、编译，最后生成可用 `pacman` 安装的包文件。理解它与 `pacman` 的分工，是使用 AUR 和制作自己软件包的前提。先跑通一个最小 PKGBUILD（下面只给构建脚本；配套的 `hello.sh` 内容在第 36 章「最小 PKGBUILD」一节，先照它创建一个再回来构建）：
 
 ```bash
 # 最小 PKGBUILD：身份 → 版本 → 依赖 → 构建安装
@@ -12,7 +12,7 @@ license=('MIT')
 depends=()                  # 运行期依赖
 makedepends=()              # 构建期依赖
 source=()                   # 本地示例不拉远程源
-sha256sums=('SKIP')         # 仅限本地练习，发布必须填真值
+sha256sums=('SKIP')         # 本地示例；内容固定的发布包必须填真实校验和（VCS/签名文件例外，见第 36 章）
 package() { install -Dm755 hello.sh "$pkgdir/usr/bin/hello-arch"; }
 ```
 
@@ -36,7 +36,7 @@ package() { install -Dm755 hello.sh "$pkgdir/usr/bin/hello-arch"; }
 sudo pacman -S --needed base-devel git namcap
 ```
 
-`base-devel` 提供 `gcc`、`make`、`fakeroot` 等基础工具，是大多数 PKGBUILD 的隐含前提。缺少它时，`makepkg` 会在构建阶段报“找不到编译器”或“缺少 fakeroot”。产物里除 `.PKGINFO`/`.MTREE` 外还有 `.BUILDINFO`（记录构建环境，复现排障用）；`PKGDEST`/`BUILDDIR` 可把产物与构建目录挪到别处，但**不要在 `/mnt/c` 里构建**（跨文件系统极慢、权限语义不同）。
+`base-devel` 提供 `gcc`、`make`、`fakeroot` 等基础工具，是大多数 PKGBUILD 的隐含前提。缺少它时，`makepkg` 会在构建阶段报「找不到编译器」或「缺少 fakeroot」。产物里除 `.PKGINFO`/`.MTREE` 外还有 `.BUILDINFO`（记录构建环境，复现排障用）；`PKGDEST`/`BUILDDIR` 可把产物与构建目录挪到别处，但**不要在 `/mnt/c` 里构建**（跨文件系统极慢、权限语义不同）。
 
 | 路径                            | 作用                             |
 | ------------------------------- | -------------------------------- |
@@ -54,11 +54,11 @@ grep -E '^(CFLAGS|MAKEFLAGS|PKGEXT|PKGDEST|SRCDEST)=' /etc/makepkg.conf
 
 PKGBUILD 里的路径几乎都围绕这三个变量展开。
 
-| 变量        | 含义                                | 默认位置        |
-| ----------- | ----------------------------------- | --------------- |
-| `$startdir` | 执行 `makepkg` 时 PKGBUILD 所在目录 | 当前目录        |
-| `$srcdir`   | 源码下载、解包、编译的工作目录      | `$startdir/src` |
-| `$pkgdir`   | 打包根目录，模拟最终系统的 `/`      | `$startdir/pkg` |
+| 变量        | 含义                                | 默认位置                  |
+| ----------- | ----------------------------------- | ------------------------- |
+| `$startdir` | 执行 `makepkg` 时 PKGBUILD 所在目录 | 当前目录                  |
+| `$srcdir`   | 源码下载、解包、编译的工作目录      | `$startdir/src`           |
+| `$pkgdir`   | 打包根目录，模拟最终系统的 `/`      | `$startdir/pkg/<pkgname>` |
 
 `$pkgdir/usr/bin/foo` 在安装后会变成 `/usr/bin/foo`。包文件里只记录 `$pkgdir` 下的内容，因此所有安装动作都必须写进 `$pkgdir`，不能直接写 `/usr`。
 
@@ -68,7 +68,7 @@ mkdir -p ~/build/hello-arch && cd ~/build/hello-arch
 makepkg -o          # 只下载/复制源码，不构建
 ls -la src/
 makepkg             # 正常构建
-ls -la pkg/usr/bin/
+ls -la pkg/hello-arch/usr/bin/     # $pkgdir 的默认路径带包名
 ```
 
 `-o` 对应 `--nobuild`：完成源码准备后停止。它适合检查 `source` 路径是否正确，而不必反复编译。
@@ -92,16 +92,16 @@ ls -la pkg/usr/bin/
 
 ## 常用参数
 
-| 参数                | 作用                                  | 典型场景         |
-| ------------------- | ------------------------------------- | ---------------- |
-| `-s` / `--syncdeps` | 用 `pacman` 安装缺失的仓库依赖        | 首次构建         |
-| `-i` / `--install`  | 构建后调用 `pacman -U` 安装           | 验证包           |
-| `-si`               | 安装依赖并构建后安装                  | 最常用组合       |
-| `-f` / `--force`    | 覆盖同名包文件，强制重新构建          | 改了 PKGBUILD 后 |
-| `-c` / `--cleanbuild` 对照 | `-c` 构建后清理，`-C` 构建前删 `$srcdir` | 残留旧源码/换 source 时用 `-C` |
-| `-c` / `--clean`    | 构建后删除 `src/`、`pkg/`，保留包文件 | 节省空间         |
-| `-o` / `--nobuild`  | 只下载与准备源码                      | 检查 source      |
-| `--printsrcinfo`    | 把 `.SRCINFO` 输出到标准输出          | AUR 提交         |
+| 参数                  | 作用                                  | 典型场景             |
+| --------------------- | ------------------------------------- | -------------------- |
+| `-s` / `--syncdeps`   | 用 `pacman` 安装缺失的仓库依赖        | 首次构建             |
+| `-i` / `--install`    | 构建后调用 `pacman -U` 安装           | 验证包               |
+| `-si`                 | 安装依赖并构建后安装                  | 最常用组合           |
+| `-f` / `--force`      | 覆盖同名包文件，强制重新构建          | 产物已存在时         |
+| `-c` / `--clean`      | 构建后删除 `src/`、`pkg/`，保留包文件 | 节省空间             |
+| `-C` / `--cleanbuild` | 构建**前**删除 `$srcdir`              | 旧源码残留导致失败时 |
+| `-o` / `--nobuild`    | 只下载与准备源码                      | 检查 source          |
+| `--printsrcinfo`      | 把 `.SRCINFO` 输出到标准输出          | AUR 提交             |
 
 组合使用：
 
@@ -123,7 +123,7 @@ makepkg --printsrcinfo > .SRCINFO
 <pkgname>-<pkgver>-<pkgrel>-<arch>.pkg.tar.zst
 ```
 
-例如 `hello-arch-1.0.0-1-any.pkg.tar.zst`。`epoch` 会写进包元数据并参与版本比较，但不出现在文件名中。拆分包会为每个子包各生成一个文件；启用调试符号时还会额外生成 `-debug` 包。
+例如 `hello-arch-0.1.0-1-any.pkg.tar.zst`。`epoch` 同时写入包元数据并参与版本比较；当 `epoch>0` 时文件名会变成 `<pkgname>-<epoch>:<pkgver>-<pkgrel>-<arch>.pkg.tar.zst`（可用 `pacman -Sp fakeroot` 观察 `fakeroot-1:1.37.2-3-x86_64.pkg.tar.zst`）。拆分包会为每个子包各生成一个文件；启用调试符号时还会额外生成 `-debug` 包。
 
 安装与核对：
 
@@ -165,7 +165,7 @@ sudo pacman -Rns hello-arch
 
 1. 用 [第 36 章 PKGBUILD 逐行详解](36-PKGBUILD-逐行详解.md) 的 hello 示例构建一次包，记录 `makepkg` 的完整输出行数与最后生成的包文件名。（环境：WSL）
 2. 先执行 `makepkg -o`，查看 `src/`；再执行 `makepkg`，查看 `pkg/`，说明两个目录的差别。（环境：WSL）
-3. 删除 `pkg/` 后重新构建，观察 `-f` 的作用。（环境：WSL）
+3. 连续构建两次，观察第二次因产物已存在而拒绝覆盖的报错；再用 `makepkg -f` 覆盖重建。（环境：WSL）
 4. 故意把 `source` 改成不存在的文件名，记录报错，再修复。（环境：WSL）
 5. 用 `pacman -Ql` 列出自己构建的包安装了哪些文件，并与 `$pkgdir` 对比。（环境：WSL）
 

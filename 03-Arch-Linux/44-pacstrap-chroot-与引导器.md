@@ -9,10 +9,12 @@
 
 ## Live 环境的三项检查
 
-启动模式、网络、时间，任何一项错误都会在后续步骤中以难以理解的方式暴露。
+启动模式、键盘、网络、时间，任何一项错误都会在后续步骤中以难以理解的方式暴露。
 
 ```bash
 cat /sys/firmware/efi/fw_platform_size   # 期望输出 64
+localectl list-keymaps | grep -i us      # 非美式键盘先挑布局
+loadkeys us                              # 按实际键盘替换，后续输入才不走样
 ip link
 ping -c 3 archlinux.org
 timedatectl
@@ -22,20 +24,20 @@ UEFI 文件输出 `64` 或 `32` 才算 UEFI 启动；文件不存在说明当前
 
 有线网络通常自动配置；无线用 `iwctl device list`、`iwctl station wlan0 connect "SSID"` 连接。`ip link` 中除 `lo` 外应有 `UP` 状态接口，`ping` 能解析域名。没有网络时 `pacstrap` 直接失败。
 
-时间偏差过大会导致 TLS 与包签名错误。必要时在 Live 环境同步时间并更新密钥环。这是 Wiki 记录的密钥环更新例外：只刷新数据库并更新 `archlinux-keyring`，目的是先取得新密钥；Live 环境是临时的，不需要随后完整升级。装好系统后请改用 `sudo pacman -Syu archlinux-keyring`，或按 [密钥环故障流程](39-常见故障处理.md) 处理：
+时间偏差过大会导致 TLS 与包签名错误。必要时在 Live 环境同步时间并更新密钥环。这是 Wiki 记录的密钥环更新例外：只刷新数据库并更新 `archlinux-keyring`，目的是先取得新密钥；Live 环境是临时的，不需要随后完整升级。装好系统后按 [第 31 章](31-缓存降级与密钥环.md) 的流程处理，或参考 [密钥环故障流程](39-常见故障处理.md)：
 
 ```bash
 sudo timedatectl set-ntp true
 sudo pacman -Sy --needed archlinux-keyring
 ```
 
-## pacstrap 安装基础系统
-
-`pacstrap` 把包安装到指定挂载点，而不是当前 Live 系统：
-
 ## 选择镜像源（pacstrap 之前）
 
 Live 环境先换到快镜像，否则 pacstrap 可能慢到超时：`reflector --country China --latest 20 --sort rate --save /etc/pacman.d/mirrorlist`（没有 reflector 就手编该文件），随后 `pacman -Sy` 验证索引能拉下来。装完系统再按第 28 章精调。
+
+## pacstrap 安装基础系统
+
+`pacstrap` 把包安装到指定挂载点，而不是当前 Live 系统：
 
 ```bash
 pacstrap -K /mnt base linux linux-firmware
@@ -47,7 +49,7 @@ pacstrap -K /mnt base linux linux-firmware
 pacstrap -K /mnt base linux linux-firmware networkmanager sudo vim man-db
 ```
 
-`pacstrap` 读取的是 Live 环境的 `/etc/pacman.d/mirrorlist`，下载慢时先用 `reflector` 换源。安装后检查：
+`pacstrap` 读取的是 Live 环境的 `/etc/pacman.d/mirrorlist`；若前面已按上一节换源，这里不需要再改。安装后检查：
 
 ```bash
 ls /mnt /mnt/boot
@@ -66,8 +68,10 @@ genfstab -U /mnt >> /mnt/etc/fstab
 `arch-chroot` 不只是 `chroot`：它先把 `/dev`、`/proc`、`/sys`、`/run` 绑定挂载到目标系统，准备好 `/etc/resolv.conf`，再切换根目录。这样新系统里的 `pacman`、`mkinitcpio`、`grub-install` 才能访问设备和网络。
 
 ```bash
-arch-chroot /mnt
+arch-chroot -S /mnt
 ```
+
+`-S` 让 chroot 以 systemd 模式运行；这一步对 systemd-boot 尤其关键——普通 `arch-chroot` 运行在 PID namespace 中，`bootctl install` 会写 ESP 文件但**不写固件启动项**（NVRAM），真机上就会出现「文件都在、固件菜单却没有 Arch」。只想改配置、不装引导器时，`arch-chroot /mnt` 也可以。
 
 进入后 `/` 就是新系统。`systemctl enable` 可以离线创建自启链接；`systemctl start` 不会启动新系统服务，因为 PID 1 仍是 Live 环境。退出与卸载：
 
@@ -134,14 +138,14 @@ options root=UUID=<根分区UUID> rw
 
 ## 常见失败
 
-| 现象                           | 原因                               | 处理                                         |
-| ------------------------------ | ---------------------------------- | -------------------------------------------- |
-| `grub-install` 找不到 EFI 目录 | ESP 未挂载或挂载点与参数不一致     | 回 Live 环境挂载，`findmnt /mnt/boot` 确认   |
-| `efibootmgr` 报 EFI 变量不支持 | Live 以 BIOS/CSM 启动              | 改 UEFI 启动后重做引导安装                   |
-| 启动进入 emergency mode        | fstab 重复或条目错误               | Live + chroot 修正 fstab                     |
-| 固件菜单没有 Arch 条目         | 引导器未写入 ESP 或 NVRAM 条目缺失 | `efibootmgr -v`、`bootctl status` 检查后重装 |
-| `Unable to mount root fs`      | `root=UUID` 错误或 initramfs 缺失  | 核对 `blkid`，重新生成 initramfs             |
-| 启动停在 `file not found`      | 引导器找不到内核或 initramfs       | 检查 `/boot` 内容与 entry 路径               |
+| 现象                           | 原因                               | 处理                                                                                       |
+| ------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------ |
+| `grub-install` 找不到 EFI 目录 | ESP 未挂载或挂载点与参数不一致     | 回 Live 环境挂载，`findmnt /mnt/boot` 确认                                                 |
+| `efibootmgr` 报 EFI 变量不支持 | Live 以 BIOS/CSM 启动              | 改 UEFI 启动后重做引导安装                                                                 |
+| 启动进入 emergency mode        | fstab 重复或条目错误               | Live + chroot 修正 fstab                                                                   |
+| 固件菜单没有 Arch 条目         | 引导器未写入 ESP 或 NVRAM 条目缺失 | 用 `arch-chroot -S /mnt` 重跑 `bootctl install`；再 `efibootmgr -v`、`bootctl status` 检查 |
+| `Unable to mount root fs`      | `root=UUID` 错误或 initramfs 缺失  | 核对 `blkid`，重新生成 initramfs                                                           |
+| 启动停在 `file not found`      | 引导器找不到内核或 initramfs       | 检查 `/boot` 内容与 entry 路径                                                             |
 
 排障原则：先用 Live ISO 挂载根分区与 ESP，`arch-chroot` 进去修配置，不要急着重装。
 

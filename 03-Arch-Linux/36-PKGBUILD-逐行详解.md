@@ -1,6 +1,6 @@
 # 第 36 章 PKGBUILD 逐行详解
 
-`PKGBUILD` 是一个受约束的 Bash 脚本：上半部分声明包的身份、版本、依赖与源码，下半部分定义构建和安装步骤。`makepkg` 通过读取它决定“从哪里取源码、怎么编译、把哪些文件装进包”。
+`PKGBUILD` 是一个受约束的 Bash 脚本：上半部分声明包的身份、版本、依赖与源码，下半部分定义构建和安装步骤。`makepkg` 通过读取它决定「从哪里取源码、怎么编译、把哪些文件装进包」。
 
 > 本章目标：能读懂并写出结构完整的 PKGBUILD，分清各类依赖与元数据，并知道每个字段出错时会发生什么。
 > 对应 Wiki：[PKGBUILD](https://wiki.archlinux.org/title/PKGBUILD)、[Makepkg](https://wiki.archlinux.org/title/Makepkg)、[Creating packages](https://wiki.archlinux.org/title/Creating_packages)
@@ -31,7 +31,7 @@
 一个 PKGBUILD 可以产出多个包：`pkgbase` 写总名，每个子包配一个 `package_子包名()`；VCS（git/svn）源的包还需要 `pkgver()` 从仓库动态生成版本。另有三个常用字段：`backup=('etc/mytools.conf')` 把配置列入保护（升级时生成 `.pacnew`、不覆盖你的修改，第 34 章）；`install=` 指定安装钩子脚本（post_install 等）；`options=('!strip')` 控制打包行为（`!strip` 保留调试符号）。
 
 ```bash
-pkgbase=mytools                        # 拆分包必须写 pkgbase
+pkgbase=mytools                        # 可选；省略时默认取 pkgname 第一项
 pkgname=(mytools-cli mytools-doc)      # 一次构建产出两个包
 package_mytools-cli() { depends=('glibc'); install -Dm755 cli "$pkgdir/usr/bin/mytools"; }
 package_mytools-doc()  { install -Dm644 doc.1 "$pkgdir/usr/share/man/man1/mytools.1"; }
@@ -64,7 +64,7 @@ sha256sums=('SKIP' '3f2c...')
 updpkgsums          # pacman-contrib 提供，自动重算并写回
 ```
 
-正式包不应保留 `SKIP`。上游若有 `.sig` 或 `.asc`，把它加入 `source`，并在 `validpgpkeys` 填完整 40 位指纹；只填密钥 ID 或短指纹不够。
+内容固定的发布 tarball 应填真实校验和，不应保留 `SKIP`；但对 VCS 源（git/svn 等，校验和随提交变化）与 `.sig`/`.asc` 签名文件，`SKIP` 是标准做法——官方仓库的 `-git` 包与 PKGBUILD(5) 示例都这么写，完整性由 commit 钉死与 PGP 验证保证。上游若有 `.sig` 或 `.asc`，把它加入 `source`，并在 `validpgpkeys` 填完整 40 位指纹；只填密钥 ID 或短指纹不够。
 
 ## 四个函数与执行顺序
 
@@ -148,7 +148,7 @@ makepkg --printsrcinfo > .SRCINFO
 
 ## 小结
 
-- PKGBUILD 上半部分描述“包是什么”，下半部分描述“怎么构建、装到哪里”。
+- PKGBUILD 上半部分描述「包是什么」，下半部分描述「怎么构建、装到哪里」。
 - `pkgver` 不能含连字符；`pkgrel` 在只改打包方式时递增；`epoch` 用于强制版本优先。
 - `depends` 是运行时依赖，`makedepends` 与 `checkdepends` 只在构建时需要，`optdepends` 不会被自动安装。
 - `source` 与 `sha256sums` 按顺序对应；正式包应使用真实校验和，签名源码用 `validpgpkeys`。

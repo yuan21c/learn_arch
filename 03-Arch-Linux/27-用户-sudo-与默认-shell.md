@@ -1,6 +1,6 @@
 # 第 27 章 Arch 的用户、sudo 与默认 shell
 
-篇一第 8 章已经把用户与用户组讲全了：三本账（`passwd`/`shadow`/`group`）、`useradd` 系命令、`id`、`su` 与 `sudo` 的原理、密码策略。本章不重复那些内容，只处理 Arch 与 WSL 特有的三件事：**wheel 组与 sudo 的授权方式、WSL 的默认用户、默认 shell 的修改**。
+篇一第 8–9 章已经把用户、用户组与 sudo 的语法和安全模型讲全了：三本账（`passwd`/`shadow`/`group`）、`useradd` 系命令、`id`、`su` 与 `sudo` 的原理、密码策略。`sudo` 的日常动词与审计在第 9 章，本章不重复那些内容，只处理 Arch 与 WSL 特有的三件事：**wheel 组与 sudo 的授权方式、WSL 的默认用户、默认 shell 的修改**。
 
 > 本章目标：能创建加入 wheel 组的普通用户并用 drop-in 方式授权 sudo；理解 `/etc/sudoers` 与 `/etc/sudoers.d/` 的分工及为什么必须用 `visudo`；会用 `/etc/wsl.conf` 设置 WSL 默认用户并处理「改错后回退 root」的情况；会用 `chsh` 修改登录 shell 并知道它何时生效。
 > 对应 Wiki：[Users and groups](https://wiki.archlinux.org/title/Users_and_groups)、[Sudo](https://wiki.archlinux.org/title/Sudo)、[WSL](https://wiki.archlinux.org/title/WSL)
@@ -56,7 +56,7 @@ sudo visudo -c          # 语法检查，输出 parsed OK 才算成功
 
 四个要点：
 
-- **首选 `visudo`**（编辑 drop-in 用 `visudo -f 文件`）：它在保存时做语法检查，写坏时不落盘并进入 `What now?` 询问——选 `e` 回去重编辑，不要选 `Q` 丢弃。直接用编辑器改 sudoers 出错，会让所有 sudo 失效——包括修它自己的 sudo。
+- **首选 `visudo`**（编辑 drop-in 用 `visudo -f 文件`）：它在保存时做语法检查，写坏时不落盘并进入 `What now?` 询问——`e` 重新编辑；`x` 不保存退出；`Q` 是带语法错误强存（危险），任何时候都不要选。直接用编辑器改 sudoers 出错，会让所有 sudo 失效——包括修它自己的 sudo。
 - **drop-in 优先**：`/etc/sudoers.d/` 下的文件由主文件里的 `@includedir` 加载，升级时不会被包管理器覆盖；主文件则可能被更新为 `.pacnew`（第 38 章）。
 - **文件名有约定**：不要用带 `.` 或以 `~` 结尾的名字，`sudo` 会忽略它们；常见写法是 `10-wheel`、`20-deploy`。
 - **权限必须是 `0440`**：`visudo -f` 是否自动设置权限随版本而定，稳妥做法是显式 `sudo chown root:root 文件 && sudo chmod 0440 文件`，再用 `sudo -l` 确认授权生效。
@@ -114,7 +114,7 @@ sudo -l                 # 列出当前用户被允许执行的命令
 
 `sudo -v` 是判断「sudo 是否可用」最轻的动作：它不执行任何命令，只验证密码与授权。`sudo -l` 则能看清到底授了什么权——排查「为什么这条命令提权被拒」时先看它。
 
-`su`、`sudo -i`、`sudo 命令` 三者的区别、`sudo` 默认重置环境变量的行为，都在篇一第 8 章讲过了，这里不再复述。
+`su`、`sudo -i`、`sudo 命令` 三者的区别、`sudo` 默认重置环境变量的行为，都在篇一第 8–9 章讲过了，这里不再复述。
 
 ## 小结
 
@@ -130,8 +130,8 @@ sudo -l                 # 列出当前用户被允许执行的命令
 1. 建用户并验证（环境：WSL）：创建 `lab` 用户加入 wheel，`sudo passwd lab` 设密码（不设则账号锁定、`su - lab` 必然认证失败），`id lab` 确认 UID、GID 与 wheel；再按练习 2 落好 drop-in 授权后 `su - lab`，用 `sudo -v` 验证提权可用（预期：要求输入 lab 的密码，成功则无输出）。
 2. drop-in 授权（环境：WSL）：删掉主文件里 `%wheel` 的注释（若本来就没开），改用 `/etc/sudoers.d/10-wheel` 授权，`visudo -c` 验证；再用 `sudo -l -U lab` 查看授权结果。
 3. 语法检查的价值（环境：WSL）：用 `visudo -f` 打开 drop-in，故意写一行语法错误，观察保存时是否被拒绝；恢复后确认 `sudo` 仍可用。
-4. WSL 默认用户（环境：WSL + PowerShell）：设置 `[user] default=lab`，`wsl --shutdown` 后重进验证 `whoami`；再把用户名改成不存在的 `nobodyx`，重进观察是否回退 root，最后用 `wsl -u root` 修回。
-5. 默认 shell（环境：WSL）：`chsh -l` 查看允许的 shell，把 `lab` 的 shell 改成 `/bin/bash`，重新登录验证 `echo $SHELL` 与 `getent passwd lab` 的最后一段。
+4. WSL 默认用户（环境：Windows PowerShell + WSL）：设置 `[user] default=lab`，`wsl --shutdown` 后重进验证 `whoami`；再把用户名改成不存在的 `nobodyx`，重进观察是否回退 root，最后用 `wsl -u root` 修回。
+5. 默认 shell（环境：WSL）：`chsh -l` 查看允许的 shell，把 `lab` 的 shell 改成 `/etc/shells` 中另一个（如 `/bin/zsh`，未装则先 `sudo pacman -S zsh`），重新登录验证 `echo $SHELL` 与 `getent passwd lab` 的最后一段；再用 `chsh -s /bin/bash lab` 改回并验证。
 6. 权限边界（环境：WSL）：用 `lab` 尝试 `sudo -l` 之外的两条命令——`cat /etc/shadow`（应失败）与 `sudo cat /etc/shadow`（应成功），解释两次结果差异来自哪一层检查。
 
 ## 自检

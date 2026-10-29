@@ -1,6 +1,6 @@
 # 目录
 
-> [Arch Linux 学习手册（WSL 版）](README.md)
+> [《Linux 与 Arch Linux 系统学习手册》（WSL 实验版）](README.md)
 
 ## 第一篇 Linux 基础
 

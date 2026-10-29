@@ -5,7 +5,7 @@
 > 本章目标：能读懂并编写 sudoers 授权行；会用 `/etc/sudoers.d/` drop-in 与 `visudo -f` 安全修改；掌握 `Defaults`、`Cmnd_Alias` 与 `sudo -u/-i/-l/-k/-v`；知道 `NOPASSWD` 的风险边界与审计入口。
 > 对应 Wiki：[Sudo](https://wiki.archlinux.org/title/Sudo)
 
-## sudoers 语法四段
+## sudoers 语法：四段 + 可选标签
 
 一条授权行的骨架是「**谁 在哪台机器 =（以谁的身份）标签: 命令**」：
 
@@ -23,7 +23,7 @@ root    ALL=(ALL:ALL)   ALL
 | 标签      | 可选，`NOPASSWD:`、`SETENV:` 等 | `NOPASSWD:`                        |
 | commands  | 允许的命令路径，可带参数白名单  | `/usr/bin/systemctl`               |
 
-发行版默认**只启用需密码那一行**（`%wheel ALL=(ALL:ALL) ALL`）；`NOPASSWD` 版本保持注释。Debian/Ubuntu 没有 `%wheel`，对应的是 `%sudo`——跨发行版迁移 sudoers 时先核对组名。
+Debian/Ubuntu 默认启用 `%sudo` 需密码行；Arch 出厂 sudoers 中两行 `%wheel` 均被注释，须显式启用（见第 27 章）——跨发行版迁移 sudoers 时先核对组名。
 
 > **危险**：`NOPASSWD: ALL` 等于把「偷到这个用户的会话」升级成「拿到 root」。免密只给按命令、按机器拆好的窄授权，永远不要给 `ALL`。
 
@@ -67,7 +67,7 @@ Cmnd_Alias DB_DUMP  = /usr/bin/mariadb-dump, /usr/bin/pg_dump
 | `sudo -v`               | 提前续上免密计时（脚本开头常用）                        |
 | `sudo -e file`          | 用自己熟悉的编辑器改文件，落盘走 sudo                   |
 
-`sudo 命令` 与 `sudo -i` 的差别在环境：前者保留大部分调用者环境变量（配合 `secure_path`），后者重置为目标用户的完整登录环境。脚本里跑 `sudo` 优先写绝对路径命令，绕开 PATH 与别名歧义；`sudo -v` 建议放在脚本开头，避免中途弹密码打断无人值守流程。
+`sudo 命令` 与 `sudo -i` 的差别在环境：`sudo` 默认 `env_reset`，只保留 `env_keep` 白名单（`HOME`/`MAIL`/`SHELL`/`LOGNAME`/`USER` 重置为目标用户），`sudo -i` 重置为登录环境（`su` 不带 `-` 才基本保留当前环境）。脚本里跑 `sudo` 优先写绝对路径命令，绕开 PATH 与别名歧义；`sudo -v` 建议放在脚本开头，避免中途弹密码打断无人值守流程。
 
 ## 审计：谁在什么时候以谁的身份做了什么
 
@@ -106,7 +106,7 @@ journalctl _COMM=sudo -o cat | tail
 
 ## 自检
 
-- [ ] 能独立读懂任意 sudoers 授权行的五段
+- [ ] 能独立读懂任意 sudoers 授权行的四段 + 可选标签
 - [ ] 会用 drop-in + `visudo -f` 安全修改授权并验证
 - [ ] 知道 `secure_path` 与「sudo 找不到命令」的关系
 - [ ] 能用 `Cmnd_Alias` 写出最小授权

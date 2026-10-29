@@ -7,16 +7,15 @@
 
 ## 从 nohup 到 unit：差别在哪
 
-| 维度 | `nohup app &` | systemd 单元 |
-| --- | --- | --- |
-| 开机自启 | 不能 | `enable` 后自动 |
-| 崩溃重启 | 不能 | `Restart=on-failure` |
-| 日志 | 自己写到文件，容易丢 | 自动进 journal，`journalctl -u` 可查 |
-| 运行身份 | 当前用户 | `User=` 显式指定 |
-| 依赖顺序 | 无 | `After=`/`Wants=` 声明 |
-| 状态查询 | `ps` 里找 PID | `systemctl status` 给出结果与退出码 |
+| 维度     | `nohup app &`        | systemd 单元                         |
+| -------- | -------------------- | ------------------------------------ |
+| 开机自启 | 不能                 | `enable` 后自动                      |
+| 崩溃重启 | 不能                 | `Restart=on-failure`                 |
+| 日志     | 自己写到文件，容易丢 | 自动进 journal，`journalctl -u` 可查 |
+| 运行身份 | 当前用户             | `User=` 显式指定                     |
+| 依赖顺序 | 无                   | `After=`/`Wants=` 声明               |
 
-后五项才是「部署」与「临时跑一下」的真正分界线。
+这五项（含开机自启）才是「部署」与「临时跑一下」的真正分界线。
 
 ## 一个最小可用的 service
 
@@ -63,13 +62,13 @@ journalctl -u demo -b --no-pager | tail -20
 
 `Type=` 写错是「服务启动了但 systemd 认为失败/还在启动」的常见原因：
 
-| 类型 | 含义 | 适用 |
-| --- | --- | --- |
-| `simple` | `ExecStart` 的进程一直前台运行（默认） | 绝大多数现代应用 |
-| `forking` | 进程自己 `fork` 到后台，父进程退出 | 传统守护进程 |
-| `oneshot` | 跑完就退出，退出即成功 | 初始化、迁移脚本 |
-| `notify` | 程序通过 `sd_notify` 告诉 systemd「我准备好了」 | 支持 systemd 通知的服务 |
-| `exec` | 像 `simple`，但等 `exec()` 成功后才算启动 | 需要精确判断启动失败 |
+| 类型      | 含义                                            | 适用                    |
+| --------- | ----------------------------------------------- | ----------------------- |
+| `simple`  | `ExecStart` 的进程一直前台运行（默认）          | 绝大多数现代应用        |
+| `forking` | 进程自己 `fork` 到后台，父进程退出              | 传统守护进程            |
+| `oneshot` | 跑完就退出，退出即成功                          | 初始化、迁移脚本        |
+| `notify`  | 程序通过 `sd_notify` 告诉 systemd「我准备好了」 | 支持 systemd 通知的服务 |
+| `exec`    | 像 `simple`，但等 `exec()` 成功后才算启动       | 需要精确判断启动失败    |
 
 判断方法：程序**是否自己后台化**。现代框架（Gunicorn 的 `--daemon` 除外、Node、Go、Spring Boot）默认前台运行，用 `simple`；老式服务用 `forking` 并配 `PIDFile=`。不确定时先在前台手工跑一次，看它是否立刻返回。
 
@@ -86,7 +85,7 @@ DATABASE_URL=postgresql://app@localhost/app
 EOF
 ```
 
-`EnvironmentFile` 的格式是 `KEY=value`，**不要加 `export`**，不要用引号包整个值（除非值里真有空格）；systemd 会做变量展开。少数场景需要 `Environment="KEY=value"` 直接写在 unit 里（非敏感、固定值）。
+`EnvironmentFile` 的格式是 `KEY=value`，**不要加 `export`**，不要用引号包整个值（除非值里真有空格）；但值**不做展开**、原样保存——`$VAR` 展开只发生在 `ExecStart` 等命令参数里。少数场景需要 `Environment="KEY=value"` 直接写在 unit 里（非敏感、固定值）。
 
 改完环境文件后 `systemctl restart demo` 生效——`daemon-reload` 只重读 unit，不重读环境文件。
 
@@ -122,10 +121,10 @@ journalctl -u demo -b -p err    # 本次启动的错误
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/demo
+ReadWritePaths=/opt/demo/data
 ```
 
-含义：禁止通过 setuid 提权；给服务一个独立的 `/tmp`；把 `/usr`、`/boot`、`/etc` 挂成只读；只把真正需要写的数据目录放开。`ProtectHome=yes` 会隐藏 `/home`、`/root`，对纯服务端应用通常可以直接开。第 53 章会把它们放进完整的安全加固清单。
+含义：禁止通过 setuid 提权；给服务一个独立的 `/tmp`；`strict` 让整个文件系统层级只读（`/dev`、`/proc`、`/sys` 例外），`/var`、`/opt` 也只读，故必须用 `ReadWritePaths=` 放行真正需要写的数据目录；`full` 才是只读 `/usr`、`/boot`、`/etc`。`ProtectHome=yes` 会隐藏 `/home`、`/root`，对纯服务端应用通常可以直接开。第 53 章会把它们放进完整的安全加固清单。
 
 ## 用户级服务
 

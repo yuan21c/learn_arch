@@ -1,6 +1,6 @@
 # 第 38 章 升级流程与 Arch News
 
-Arch 是滚动发行版，升级不是“偶尔执行一次”的动作，而是一套有前置检查、有输出阅读、有升级后验证的流程。跳过其中任何一步，都可能把一次普通更新变成部分升级。
+Arch 是滚动发行版，升级不是「偶尔执行一次」的动作，而是一套有前置检查、有输出阅读、有升级后验证的流程。跳过其中任何一步，都可能把一次普通更新变成部分升级。
 
 > 本章目标：能按固定流程完成一次安全升级，读懂 pacman 的关键输出，并正确处理 `.pacnew` 与升级后的 AUR 重建。
 > 对应 Wiki：[System maintenance](https://wiki.archlinux.org/title/System_maintenance)、[Arch News](https://archlinux.org/news/)、[Pacman#Pacnew and Pacsave files](https://wiki.archlinux.org/title/Pacman#Pacnew_and_Pacsave_files)
@@ -30,7 +30,7 @@ checkupdates
 pacman -Qu          # 只对比本地数据库与已同步的仓库索引
 ```
 
-Arch News 要重点看标题中的包名与“manual intervention”字样。新闻可能要求先升级某个包、修改配置、重建模块或重启服务；忽略它，`pacman -Syu` 本身不会提醒你。
+Arch News 要重点看标题中的包名与「manual intervention」字样。新闻可能要求先升级某个包、修改配置、重建模块或重启服务；忽略它，`pacman -Syu` 本身不会提醒你。
 
 ## 执行升级并阅读输出
 
@@ -114,11 +114,10 @@ sudo DIFFPROG=vimdiff pacdiff # 临时指定对比工具
 密钥环是使用特殊升级顺序的典型场景。系统很久未升级时，Wiki 允许先单独更新密钥环：
 
 ```bash
-sudo pacman -Sy archlinux-keyring
-sudo pacman -Su
+sudo pacman -Sy --needed archlinux-keyring && sudo pacman -Su
 ```
 
-> **注意**：这是 Wiki 明确说明的例外，不是日常做法。执行后必须立即用 `pacman -Su` 完成全系统升级，不能停在“只更新了 keyring”的状态。
+> **注意**：这是 Wiki 明确说明的例外，不是日常做法。执行后必须立即用 `pacman -Su` 完成全系统升级，不能停在「只更新了 keyring」的状态。
 
 ## 升级后的 AUR 重建
 
@@ -143,7 +142,7 @@ makepkg -f -si
 ## 小结
 
 - 升级前读 Arch News、备份、检查磁盘与待升级包，确认没有忽略规则。
-- 只用 `sudo pacman -Syu` 完成全系统升级，永远不要 `pacman -Sy 包名`。
+- 只用 `sudo pacman -Syu` 完成全系统升级，永远不要 `pacman -Sy 包名`（唯一例外：keyring 引导，见上文）。
 - 升级后检查 `systemctl --failed`、`journalctl -p err -b`、孤立包和非官方包。
 - WSL 中用 `wsl --shutdown` 重启用户空间；内核由 Windows 侧提供。
 - `.pacnew` 用 `pacdiff` 合并；`.pacsave` 是卸载时保留的修改过的配置。

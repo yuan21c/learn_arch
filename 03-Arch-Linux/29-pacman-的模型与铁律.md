@@ -17,7 +17,7 @@
 ls /var/lib/pacman/sync/
 # core.db  core.db.sig  extra.db  extra.db.sig
 ls /var/lib/pacman/local/ | head -n 3
-# bash-5.3.3-1 / glibc-2.42-5 / pacman-7.1.0-1（三行，此处合并展示）
+# abseil-cpp-20260817.0-2 / acl-2.4.0-1 / ada-4.0.0-1（按字母序，你的系统取决于已装包）
 sudo du -sh /var/cache/pacman/pkg
 ```
 
@@ -27,7 +27,7 @@ sudo du -sh /var/cache/pacman/pkg
 
 ## 显式安装与依赖安装
 
-每个包的本地记录里都有一个「安装原因」：`explicit`（用户主动要求）或 `dep`（为满足别的包而装）。这个标记决定了孤立包清理的结果。
+每个包的本地记录里都有一个「安装原因」：Explicit（用户主动要求）或 Depends（为满足别的包而装）。本地库的 `%REASON%` 字段用 `0`/`1` 表示（0=显式，1=依赖）；日常以 `pacman -Qi` 的 Install Reason 一行为准。这个标记决定了孤立包清理的结果。
 
 ```bash
 pacman -Qe            # 显式安装的包
@@ -42,18 +42,21 @@ sudo pacman -D --asexplicit 库名  # 改标为显式
 
 ### 包、组、元包
 
-| 概念 | 是什么                           | 例子           | 查看方式          |
-| ---- | -------------------------------- | -------------- | ----------------- |
-| 包   | 最小的安装单位，有版本和文件列表 | `bash`、`htop` | `pacman -Si 包名` |
-| 组   | 一组包的逻辑集合，本身不是包     | `base-devel`   | `pacman -Sg 组名` |
-| 元包 | 一个空包，只靠依赖拉入其他包     | `base`         | `pacman -Si base` |
+| 概念 | 是什么                           | 例子                       | 查看方式          |
+| ---- | -------------------------------- | -------------------------- | ----------------- |
+| 包   | 最小的安装单位，有版本和文件列表 | `bash`、`htop`             | `pacman -Si 包名` |
+| 组   | 一组包的逻辑集合，本身不是包     | `xorg`、`kde-applications` | `pacman -Sg 组名` |
+| 元包 | 一个空包，只靠依赖拉入其他包     | `base`、`base-devel`       | `pacman -Si 包名` |
 
 ```bash
-pacman -Sg base-devel      # 只列出组成员，不安装
-sudo pacman -S base-devel  # 安装整组
+pacman -Sg xorg             # 只列出组成员，不安装
+sudo pacman -S xorg         # 安装整组
+sudo pacman -Si base-devel  # 元包：正常输出；换成 -Sg 会报 group not found
 ```
 
 安装组时，组内每个包都会被记为显式安装，因为 pacman 不记录「你装过这个组」。如果组里某些包只是工具链依赖，可用 `-D --asdeps` 逐个调整。元包则相反：它的依赖才是安装原因，卸载元包后依赖会变成孤立包。
+
+注意：`base-devel` 自 2023-02 起已由包组改为 core 元包。旧教程里 `pacman -Sg base-devel` 的写法如今会报 `package group 'base-devel' was not found`；判断一个名字是组还是包，分别试 `-Sg` 与 `-Si` 即可。
 
 ## 仓库顺序与版本选择
 
@@ -133,7 +136,7 @@ Total Download Size:   18.42 MiB
 3. 依赖求解，计算升级、安装、卸载集合，检查冲突。
 4. 下载缺失的包到缓存，校验 SHA-256 与 PGP 签名，检查磁盘空间。
 5. 执行 `PreTransaction` hooks。
-6. 逐包解包：运行 `pre_install` 脚本、写入文件、运行 `post_install` 脚本、更新本地数据库。
+6. 逐包解包：新装包运行 `pre_install` 脚本、写入文件、运行 `post_install` 脚本；被替换的旧包走 `pre_upgrade`/`post_upgrade`（升级事务不会运行 install 系列脚本）。随后更新本地数据库。
 7. 执行 `PostTransaction` hooks，例如 systemd 的 `daemon-reload`、`sysusers` 相关 hook。
 8. 释放锁，把每一步写入 `/var/log/pacman.log`。
 

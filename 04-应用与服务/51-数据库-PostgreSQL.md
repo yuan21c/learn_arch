@@ -44,7 +44,7 @@ CREATE DATABASE app OWNER app;
 | -------- | ------------------------------- | ----------------------------------------------------------- |
 | 用户     | `'app'@'host'`（用户名 + 来源） | `app`（角色），来源由 `pg_hba.conf` 决定                    |
 | 权限授予 | `GRANT ... ON db.*`             | `GRANT ... ON 对象`（表、序列、schema），库级只有 `CONNECT` |
-| 默认权限 | 新库对应用户可见                | 新库属主才有完整权限，其他人默认只能连不能读                |
+| 默认权限 | 新库建好后仍需 `GRANT` 才可访问 | 用户默认对新库无任何权限，需 `GRANT`（见本章后文）          |
 | 超级用户 | `root@localhost`                | `postgres`                                                  |
 
 这意味着「建了库、建了角色，应用还是读不到表」是正常现象：表属于谁、`search_path` 指向哪个 schema、有没有 `USAGE` 权限，三件事都要给。生产实践是**让应用角色拥有自己的 schema**，或把表的属主设为应用角色。
@@ -61,7 +61,7 @@ host    all       all   ::1/128       scram-sha-256
 ```
 
 - `local` 是 Unix socket 连接，`peer` 表示「操作系统用户名必须等于数据库角色名」——所以 `sudo -u postgres psql` 能免密，而 `psql -U app` 不行。
-- `host` 是 TCP 连接，METHOD 建议写 `scram-sha-256`（密码挑战应答，比 `md5` 安全）。注意它只是 `password_encryption` 的默认**存储**算法；不带 `--auth` 的 `initdb` 生成的 `pg_hba.conf` 仍是 `trust`——别把两者混为一谈。
+- `host` 是 TCP 连接，METHOD 写 `scram-sha-256` 表示用 SCRAM 挑战应答认证。注意别把两个层面的东西混为一谈：`postgresql.conf` 的 `password_encryption` 决定口令在库里以哪种哈希算法**存储**；`pg_hba.conf` 的 METHOD 决定连接时用哪种**认证**方式。把 `password_encryption` 从 `md5` 改成 `scram-sha-256` 不会转换已有哈希，需用 `ALTER USER … PASSWORD '…'` 重设口令才会按新算法存储。另外，不带 `--auth` 的 `initdb` 生成的 `pg_hba.conf` 仍是 `trust`。
 - **改完要 `systemctl reload postgresql`**，不是 restart。
 
 监听地址由 `postgresql.conf` 的 `listen_addresses` 控制，默认 `'localhost'`。开远程访问同样要三件套：改 `listen_addresses`、在 `pg_hba.conf` 加带网段的 `host` 规则、放行防火墙。

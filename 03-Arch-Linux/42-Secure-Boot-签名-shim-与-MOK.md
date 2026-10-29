@@ -89,7 +89,7 @@ mokutil --list-new         # 看待注册的密钥
 | MOK 注册不生效            | Setup Mode/注册流程没走完 | `mokutil --list-enrolled` 核对；必要时先关闭 SB    |
 | 放弃签名路线              | —                         | 固件关闭 SB，密钥清理以 Wiki 为准                  |
 
-保留 fallback 启动项（第 41 章）与一份可启动的 Live ISO，是所有引导层改动的通用安全网；动手前先确认 `ls /boot` 里有可用的 fallback 内核。
+保留 fallback 启动项（第 41 章）与一份可启动的 Live ISO，是所有引导层改动的通用安全网；动手前先确认 `/etc/mkinitcpio.d/linux.preset` 已启用 fallback 且 `/boot` 里有对应的 fallback **镜像**（默认并不生成）。
 
 ## 小结
 

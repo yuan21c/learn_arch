@@ -22,7 +22,7 @@ type cd          # 输出：cd is a shell builtin
 command -v ls    # 输出该程序的绝对路径
 ```
 
-`type` 回答「这个名字到底是什么」；`command -v` 回答「可执行文件在哪」。分清 builtin 与外部程序，才能理解为什么 `cd` 不需要也不应该写全路径。
+`type` 回答「这个名字到底是什么」；`command -v` 回答「可执行文件在哪」——但 builtin、函数、别名只回显名字而非路径，需配合 `type` 判断。分清 builtin 与外部程序，才能理解为什么 `cd` 不需要也不应该写全路径。
 
 ## 路径：绝对与相对
 
@@ -128,7 +128,7 @@ Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
 
 2. 运行 `cd /bin && pwd && pwd -P`，解释两个输出为什么不同，再用 `cd -` 返回（环境：WSL）。
 3. 用 `ls -lFah ~ | head -8` 认清长格式的列位置：首字符、权限位、链接数、大小、时间各占哪列（环境：WSL；权限九位的读法见第 6 章，本题只认列位置）。
-4. 运行 `ls --help | head -20`，找一个你会用的选项并当场验证；再运行 `whatis ls`（环境：WSL）。
+4. 运行 `ls --help | head -20`，找一个你会用的选项并当场验证；再运行 `whatis ls`（环境：WSL；无 `whatis` 时先装 `man-db`，见上文）。
 5. 在交互 shell 中按 `↑` 翻到本章敲过的某条命令，运行 `history 5`，然后用 `Ctrl-R` 搜出含 `pwd` 的一条（环境：WSL）。
 
 ## 自检

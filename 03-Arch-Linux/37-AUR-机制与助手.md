@@ -1,6 +1,6 @@
 # 第 37 章 AUR 机制与助手
 
-AUR（Arch User Repository）是用户提交的 `PKGBUILD` 集合，不是二进制仓库。它把“有人已经写好构建脚本”这件事集中起来，但编译、依赖、安全和维护仍由使用者自己负责。官方不为 AUR 包提供支持。
+AUR（Arch User Repository）是用户提交的 `PKGBUILD` 集合，不是二进制仓库。它把「有人已经写好构建脚本」这件事集中起来，但编译、依赖、安全和维护仍由使用者自己负责。官方不为 AUR 包提供支持。
 
 > 本章目标：能安全地手动从 AUR 构建包，读懂更新差异，并在理解风险的前提下使用 AUR 助手。
 > 对应 Wiki：[Arch User Repository](https://wiki.archlinux.org/title/Arch_User_Repository)、[AUR helpers](https://wiki.archlinux.org/title/AUR_helpers)、[Makepkg](https://wiki.archlinux.org/title/Makepkg)
@@ -15,7 +15,7 @@ AUR（Arch User Repository）是用户提交的 `PKGBUILD` 集合，不是二进
 | 支持     | 官方支持         | 官方不支持，风险自负                   |
 | 更新     | 随仓库同步       | 上游变化后由提交者更新脚本             |
 
-AUR 页面上的“包”只是构建脚本的入口。构建参数见 [第 35 章 makepkg 工作流](35-makepkg-工作流.md)，变量语法见 [第 36 章 PKGBUILD 逐行详解](36-PKGBUILD-逐行详解.md)。
+AUR 页面上的「包」只是构建脚本的入口。构建参数见 [第 35 章 makepkg 工作流](35-makepkg-工作流.md)，变量语法见 [第 36 章 PKGBUILD 逐行详解](36-PKGBUILD-逐行详解.md)。
 
 ## 标准手动流程
 
@@ -57,7 +57,7 @@ AUR 没有统一的代码审计，恶意 PKGBUILD 可以在构建时执行任意
 | 构建步骤 | `curl ... \| bash`、`wget ... \| sh`、`base64 -d \| bash` |
 | 权限     | `chmod 777`、`sudo`、修改 `/etc` 或 `/usr` 的脚本         |
 | 安装路径 | 文件写到 `$pkgdir` 之外，或伪装成系统包                   |
-| 维护状态 | 长期未更新、大量“out-of-date”标记、评论中报告构建失败     |
+| 维护状态 | 长期未更新、大量「out-of-date」标记、评论中报告构建失败     |
 | 社区信号 | 投票极少、维护者新注册、评论被删除或无人回应              |
 
 几条硬规则：
@@ -114,11 +114,12 @@ makepkg -si
 
 ```bash
 ldd /usr/bin/example | grep 'not found'
-pacman -Qoq /usr/lib/libexample.so.1
+pacman -F libexample.so.1        # 需先 pacman -Fy
+pacman -Qoq /usr/lib/libexample.so.1   # 路径存在时确认归属
 pacman -Qm
 ```
 
-`pacman -Qoq` 用于确认该库路径当前由哪个已安装包提供；路径已不存在时，说明旧库已被升级替换。用 `pacman -Qm` 列出所有非官方来源包，逐个判断哪些需要重建。典型需要重建的场景包括 `icu`、`python`、`openssl`、`glibc` 等基础库的大版本更新。
+`ldd` 报 `not found` 后，用 `pacman -F libexample.so.1` 去仓库里找提供者（需先 `pacman -Fy`）；`pacman -Qoq <现存路径>` 只用于确认某个已存在的库路径当前由哪个已安装包提供——文件被删和从未属于任何包都会报同一条 `No package owns`，不能据此区分「被升级替换」。用 `pacman -Qm` 列出所有非官方来源包，逐个判断哪些需要重建。典型需要重建的场景包括 `icu`、`python`、`openssl`、`glibc` 等基础库的大版本更新。
 
 ```bash
 cd ~/build/example
@@ -135,7 +136,7 @@ AUR 包构建失败时，先看 `makepkg` 输出的第一条 `ERROR`；再读 AU
 维护习惯：
 
 - 定期 `pacman -Qm`，删除不再需要的 AUR 包；记录每个包的用途和构建目录。
-- 不要随意添加第三方二进制仓库来“替代”AUR，那会引入新的信任问题。
+- 不要随意添加第三方二进制仓库来「替代」AUR，那会引入新的信任问题。
 - AUR 页面标记过期的包，可等待维护者更新，或核对上游后修改本地 PKGBUILD，但不要盲目上传。
 
 ## 小结

@@ -44,7 +44,7 @@ sudo nginx -t                 # 语法与路径检查，输出 syntax is ok / te
 sudo systemctl reload nginx   # 平滑重载：现有连接不断
 ```
 
-`reload` 与 `restart` 的区别要记住：`reload` 让 worker 平滑切换，不中断连接；`restart` 会停掉主进程，连接全断。**改站点配置用 `reload`，改端口/用户等需要重新绑定 socket 的配置才用 `restart`**。
+`reload` 与 `restart` 的区别要记住：`reload` 让 worker 平滑切换，不中断连接；`restart` 会停掉主进程，连接全断。**绝大多数改动（虚拟主机、TLS、`listen` 端口）用 `reload` 即可**——nginx 会先打开新的 listen socket 再平滑换 worker；`user`/`worker_processes` 一类主配置项若 reload 后未生效，再用 `restart`。
 
 ## 托管静态站点
 
@@ -73,7 +73,7 @@ server {
 - `root` 指向的目录必须让 `http` 用户可读（目录 `755`、文件 `644`）；否则报 `403 Forbidden`。
 - `try_files $uri $uri/ =404` 是静态站的标准写法：先找文件，再找目录，都没有才 404。
 - **前端 SPA**（React/Vue）要把最后一项换成 `index.html`：`try_files $uri $uri/ /index.html;`，否则刷新子路由会 404。
-- 多个站点共用一个 IP 时，`server_name` 决定命中哪个 server 块；**Arch 自带的默认 server（`listen 80; server_name localhost;`）在 `conf.d` include 之前**，按 IP 访问或 Host 不匹配的请求都会落到它（看到默认页就是这个原因）。要抢占就写 `listen 80 default_server;`（一个端口只能有一个，需先注释主配置里的默认 server），或测试时用 `curl -H 'Host: example.local'` 命中自己的站点。
+- 多个站点共用一个 IP 时，`server_name` 决定命中哪个 server 块；**Arch 自带的默认 server（`listen 80; server_name localhost;`）在 `conf.d` include 之前**，按 IP 访问或 Host 不匹配的请求都会落到它（看到默认页就是这个原因）。要抢占就写 `listen 80 default_server;`——同一端口只能有一个 `default_server`，两个都写才会报 duplicate，不需要改主配置；测试时也可用 `curl -H 'Host: example.local'` 命中自己的站点。
 - 本章占 80 端口；同机做第 49 章的 Apache/Caddy 实验前先 `systemctl disable --now nginx`，或把对方改到 8080/8081。
 
 ## 反向代理：把请求交给应用
@@ -119,18 +119,19 @@ proxy_set_header Connection "upgrade";
 
 TLS 的信任模型、本地自签与排障见第 48 章；本节只走 certbot 的公网快速路径。
 
-公网域名 + 可达 80 端口时，用 certbot 一条命令搞定（环境：VM/公网主机；WSL 里的本地域名要拿公网证书只能靠 DNS-01 验证或端口转发，通常直接自签）：
+公网域名 + 可达 80 端口时，用 certbot 一条命令搞定（环境：VM/公网主机；WSL 里的本地域名要拿公网证书只能靠 DNS-01 验证或端口转发，通常直接自签）。若启用了防火墙，记得放行 80/443（见第 18、53 章）：
 
 ```bash
 sudo pacman -S certbot certbot-nginx
 sudo certbot --nginx -d app.example.com
 ```
 
-certbot 会改写你的 server 块（加 `listen 443 ssl`、证书路径、80→443 跳转）。续期由包自带的 `certbot-renew.timer` 负责（不是 `certbot.timer`），检查它是否在跑：
+certbot 会改写你的 server 块（加 `listen 443 ssl`、证书路径、80→443 跳转）。**续期不是装完就自动**：Arch 的包不会自动启用单元，必须显式启用 timer 并验证：
 
 ```bash
-systemctl list-timers | grep certbot
-sudo certbot renew --dry-run    # 演练续期，不真的换证书
+sudo systemctl enable --now certbot-renew.timer   # 包提供的是 certbot-renew.timer
+systemctl list-timers | grep -i certbot           # 看到下次触发时间才算生效
+sudo certbot renew --dry-run                      # 演练续期，不真的换证书
 ```
 
 本地开发不折腾证书，直接用 HTTP + `localhost` 即可；需要 HTTPS 时用自签证书（浏览器会警告，属正常）。
@@ -157,8 +158,7 @@ sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码�
 
 ## 小结
 
-- 装完先 `enable --now`，用 `curl -I` 验证；Arch 的 nginx 以 `http` 用户运行。
-- Arch 默认没有 `conf.d`：先在 `http {}` 里加 `include /etc/nginx/conf.d/*.conf;`；改完 `nginx -t` → `reload`。
+- 装完先 `enable --now` 并用 `curl -I` 验证；Arch 的 nginx 以 `http` 用户运行，默认没有 `conf.d`，先在 `http {}` 里加 `include /etc/nginx/conf.d/*.conf;`，改完 `nginx -t` → `reload`。
 - 静态站用 `try_files`；SPA 的最后一项换成 `/index.html`。
 - 反代的四个头（`Host`、`X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`）必须有；上传要调 `client_max_body_size`。
 - TLS 交给 certbot，续期靠 `certbot-renew.timer`，用 `--dry-run` 验证。
@@ -167,11 +167,11 @@ sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码�
 ## 练习
 
 1. 静态站（环境：WSL）：在 `/srv/www/lab` 放一个 `index.html`，写 `conf.d/lab.conf`，用 `curl -I -H 'Host: lab.example.local' http://127.0.0.1/` 验证（不带 Host 会落到默认站点）；故意把目录权限改成 `700`，观察 `403` 并从 error.log 里找到证据。
-2. SPA 路由（环境：WSL）：把 `try_files` 改成 `/index.html`，用 `curl -I http://127.0.0.1/some/route` 验证返回 200 而不是 404。
+2. SPA 路由（环境：WSL）：把 `try_files` 改成 `/index.html`，用 `curl -I -H 'Host: <你的 server_name>' http://127.0.0.1/some/route` 验证返回 200 而不是 404（不带 Host 会落到默认站点）。
 3. 反向代理（环境：WSL）：用第 46 章的 `demo.service` 或 `python3 -m http.server 8000` 起后端，配反代后用 `curl -H 'Host: app.example.local' http://127.0.0.1/` 验证（Host 必须与 `server_name` 一致，否则会落到默认站点）；再删掉 `proxy_set_header Host`，对比后端看到的头。
 4. 413 复现（环境：WSL）：用 `curl -F file=@大文件` 上传超过 1 MB 的文件触发 `413`，调大 `client_max_body_size` 后重试成功。
 5. 502 排查（环境：WSL）：停掉后端，访问页面记录 `502`；从 `journalctl -u nginx`（或在 server 里配了 `error_log` 后从该文件）找出 `connect() failed` 的具体地址，再改回正确端口。
-6. 日志分析（环境：WSL）：用 `ab` 或循环 `curl` 产生 50 个请求，从 `access.log` 统计状态码分布与平均耗时（`awk` 一行即可）。
+6. 日志分析（环境：WSL）：用 `ab` 或循环 `curl` 产生 50 个请求，从 `access.log` 统计状态码分布（`awk` 一行即可）。默认 combined 格式不含请求耗时；要统计平均耗时，先在 server 块加含 `$request_time` 的 `log_format`。
 
 ## 自检
 

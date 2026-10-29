@@ -50,13 +50,13 @@ Environment=PYTHONUNBUFFERED=1
 
 ## Timer 关键字段
 
-| 字段                            | 含义                                  |
-| ------------------------------- | ------------------------------------- |
-| `OnCalendar`                    | 日历时间表达式                        |
-| `OnBootSec` / `OnUnitActiveSec` | 相对启动或上次运行的时间              |
-| `Persistent`                    | 错过触发时间后，下次开机补跑          |
-| `Unit`                          | 要激活的 service，默认同名 `.service` |
-| `AccuracySec`                   | 允许的时间误差，默认 1 分钟           |
+| 字段                            | 含义                                                    |
+| ------------------------------- | ------------------------------------------------------- |
+| `OnCalendar`                    | 日历时间表达式                                          |
+| `OnBootSec` / `OnUnitActiveSec` | 相对启动或上次运行的时间                                |
+| `Persistent`                    | 错过触发时间后，下次开机补跑（仅对 `OnCalendar=` 生效） |
+| `Unit`                          | 要激活的 service，默认同名 `.service`                   |
+| `AccuracySec`                   | 允许的时间误差，默认 1 分钟                             |
 
 `OnCalendar` 用 `systemd-analyze calendar` 验证，不要凭感觉写：
 
@@ -80,8 +80,11 @@ Description=Clean pacman cache
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/paccache -rk2    # 保留 2 个最新版本，其余旧包缓存被删除
+# 保留 2 个最新版本，其余旧包缓存被删除
+ExecStart=/usr/bin/paccache -rk2
 ```
+
+> systemd 只支持整行注释：`#` 必须位于行首，写在指令后面会被当成参数。
 
 `/etc/systemd/system/paccache-clean.timer`：
 
@@ -103,6 +106,7 @@ sudo systemctl enable --now paccache-clean.timer
 systemctl list-timers paccache-clean.timer
 # NEXT                        LEFT     LAST                        PASSED  UNIT
 # Mon 2026-11-02 00:00:00 CST 6 days   Mon 2026-10-26 00:00:00 CST 1 day   paccache-clean.timer
+# （此处省略 ACTIVATES 列；实际输出默认包含它）
 ```
 
 注意：`pacman-contrib` 自带 `paccache.service` 与 `paccache.timer`，放在 `/usr/lib/systemd/system/`，默认未启用。示例改用 `paccache-clean.*`，是为了避免在 `/etc` 下创建同名单元覆盖软件包文件。如果只需要默认的清理策略，直接 `sudo systemctl enable --now paccache.timer` 即可。
@@ -138,7 +142,7 @@ systemctl list-timers
 | 服务从未触发           | `Unit=` 指向了不存在的 service | 检查 timer 的 `Unit=` 与文件名 |
 | 开机后错过一次执行     | 未设 `Persistent=true`         | 补上并重载                     |
 
-系统级与用户级是两条并行的路：系统 unit 放 `/etc/systemd/system/`（本章默认，`systemctl` 管理）；用户 unit 放 `~/.config/systemd/user/`（`systemctl --user` 管理），且要 `sudo loginctl enable-linger` 才能在没有登录会话时保持运行——第 46 章会用它托管应用。
+系统级与用户级是两条并行的路：系统 unit 放 `/etc/systemd/system/`（本章默认，`systemctl` 管理）；用户 unit 放 `~/.config/systemd/user/`（`systemctl --user` 管理），且要 `loginctl enable-linger "$USER"` 才能在没有登录会话时保持运行——注意 `sudo` 会把调用者变成 root，所以要么不带 sudo、要么显式给出用户名，否则开的是 root 的 linger。第 46 章会用它托管应用。
 
 ## 小结
 

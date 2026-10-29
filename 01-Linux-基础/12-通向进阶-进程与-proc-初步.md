@@ -77,7 +77,7 @@ MemFree:         5122888 kB
 MemAvailable:    8304120 kB
 ```
 
-读法要点：`/proc/uptime` 第一字段是开机秒数，换算约 21.5 小时，与 `uptime -p` 的实测输出 `up 21 hours, 35 minutes` 相互印证；loadavg 三个数字是**可运行（R）+ 不可中断（D）**任务数的 1/5/15 分钟指数衰减平均——负载高而 CPU 空闲时，先查 D 状态进程与 IO；经验判据是看它是否持续超过 CPU 核数，超过即意味着任务在排队；`MemAvailable` 才是「实际还能给程序用多少」，`MemFree` 只统计完全空闲的部分，两者差额大不等于异常。这些仪表在第 13 章（进程）与第二篇第 16 章（磁盘与存储）会反复回看，先把字段混熟。
+读法要点：`/proc/uptime` 第一字段是开机秒数，换算约 21.5 小时；`uptime -p` 的实测输出是 `up 21 hours, 35 minutes`——两次采样存在时间差，数值接近即可，不必逐分钟对齐；loadavg 三个数字是**可运行（R）+ 不可中断（D）**任务数的 1/5/15 分钟指数衰减平均——负载高而 CPU 空闲时，先查 D 状态进程与 IO；经验判据是看它是否持续超过 CPU 核数，超过即意味着任务在排队；`MemAvailable` 才是「实际还能给程序用多少」，`MemFree` 只统计完全空闲的部分，两者差额大不等于异常。这些仪表在第 13 章（进程）与第二篇第 16 章（磁盘与存储）会反复回看，先把字段混熟。
 
 ## 一次 cat 的旅程：把篇一串起来
 
@@ -108,7 +108,7 @@ MemAvailable:    8304120 kB
    ```
 
 2. 进程生灭完整观察（环境：WSL）：`sleep 10 & pid=$!`，趁活着依次执行 `ls -d /proc/$pid`、`cat /proc/$pid/comm`、`tr '\0' ' ' < /proc/$pid/cmdline`（解释为什么命令行要过 `tr`），再 `wait` 后重复 `ls -d /proc/$pid` 记录报错。
-3. 整机仪表解读（环境：WSL，只读）：`cat /proc/uptime` 并换算成小时，对照 `uptime -p`；`cat /proc/loadavg` 读出三个负载数字与 `运行中/总线程数`，和 `grep -c ^processor /proc/cpuinfo` 的核数对比，判断此刻系统是否排队；`head -5 /proc/meminfo` 说清 `MemFree` 与 `MemAvailable` 的差别。
+3. 整机仪表解读（环境：WSL，只读）：`cat /proc/uptime` 并换算成小时，对照 `uptime -p`（两次采样有时间差，接近即可）；`cat /proc/loadavg` 读出三个负载数字与 `运行中/总线程数`，和 `grep -c ^processor /proc/cpuinfo` 的核数对比，判断此刻系统是否排队；`head -5 /proc/meminfo` 说清 `MemFree` 与 `MemAvailable` 的差别。
 4. 系统调用的边界（环境：WSL）：`type cd`、`type -a pwd` 判断两者形态（注意 bash/zsh 的 `pwd` 也是 builtin，`type -a` 会同时列出 builtin 与 `/usr/bin/pwd`），回答「两个动作各自要不要新建进程、要不要陷入内核」；已安装 `strace` 的环境（Arch：`pacman -S strace`，本机未预装）可选做 `strace -c ls > /dev/null 2> counts.txt; head -5 counts.txt`，从统计里找出 `ls` 调用最多的 syscall。
 
 ## 自检

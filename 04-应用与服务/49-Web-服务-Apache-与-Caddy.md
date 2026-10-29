@@ -7,14 +7,14 @@
 
 ## 三者定位一张表
 
-| 维度     | nginx                                  | Apache httpd                             | Caddy                              |
-| -------- | -------------------------------------- | ---------------------------------------- | ---------------------------------- |
-| 配置模型 | 层级块（`http`/`server`/`location`）   | 全局指令 + `<VirtualHost>` + `.htaccess` | 极简 DSL（Caddyfile）或 JSON       |
-| 进程模型 | 事件驱动，少量 worker                  | 多进程/多线程（MPM 可配）                | Go 写的，事件驱动                  |
-| TLS      | 需 certbot 或手工配证书                | 需 mod_ssl + certbot                     | **默认自动申请与续期**             |
-| 扩展     | 模块需重编译（多数发行版已带常用模块） | 模块动态加载（`LoadModule`）             | 插件需重编译（官方版内置常用能力） |
-| 典型优势 | 高并发静态与反代、生态最大             | 目录级 `.htaccess`、历史应用兼容         | 零配置 HTTPS、配置短               |
-| 典型代价 | 配置语法坑多                           | 配置冗长、性能调优复杂                   | 生态与排障资料少于前两者           |
+| 维度     | nginx                                         | Apache httpd                             | Caddy                              |
+| -------- | --------------------------------------------- | ---------------------------------------- | ---------------------------------- |
+| 配置模型 | 层级块（`http`/`server`/`location`）          | 全局指令 + `<VirtualHost>` + `.htaccess` | 极简 DSL（Caddyfile）或 JSON       |
+| 进程模型 | 事件驱动，少量 worker                         | 多进程/多线程（MPM 可配）                | Go 写的，事件驱动                  |
+| TLS      | 需 certbot 或手工配证书                       | 需 mod_ssl + certbot                     | **默认自动申请与续期**             |
+| 扩展     | 动态模块（≥1.9.11），Arch 有 `nginx-mod-*` 包 | 模块动态加载（`LoadModule`）             | 插件需重编译（官方版内置常用能力） |
+| 典型优势 | 高并发静态与反代、生态最大                    | 目录级 `.htaccess`、历史应用兼容         | 零配置 HTTPS、配置短               |
+| 典型代价 | 配置语法坑多                                  | 配置冗长、性能调优复杂                   | 生态与排障资料少于前两者           |
 
 选择建议：新项目做反向代理或静态站，nginx 与 Caddy 都合适——**不想折腾证书选 Caddy，需要最大生态与调优空间选 nginx**；已有大量 `.htaccess` 或老应用只支持 Apache 时，继续用 Apache。
 
@@ -36,7 +36,7 @@ Arch 上的几个固定事实：运行用户是 `http`、站点根是 `/srv/http
 sudo apachectl configtest      # 输出 Syntax OK
 ```
 
-一个 vhost（放在 `/etc/httpd/conf/extra/httpd-vhosts.conf`，并在主文件里 uncomment 对应的 `Include`）：
+一个 vhost（放在 `/etc/httpd/conf/extra/httpd-vhosts.conf`，并在主文件里 uncomment 对应的 `Include`）。该文件自带的 dummy `<VirtualHost>` 块先注释或删除，自己的 vhost 放在最前——没有 `ServerName` 匹配时，第一个 vhost 兼任默认站：
 
 ```apache
 <VirtualHost *:80>
@@ -67,7 +67,7 @@ sudo pacman -S caddy
 sudo systemctl enable --now caddy
 ```
 
-配置文件是 `/etc/caddy/Caddyfile`，Arch 默认以 `caddy` 用户运行、站点根是 `/usr/share/caddy`。一个反代站点：
+配置文件是 `/etc/caddy/Caddyfile`，Arch 默认以 `caddy` 用户运行、站点根是 `/usr/share/caddy`。**默认 Caddyfile 的站点会占 80/443**，与同机的 nginx/httpd 存在端口冲突——同时跑之前先停掉其他服务，或把本地实验块改成 `:8080` 这类端口。一个反代站点：
 
 ```caddy
 app.example.com {

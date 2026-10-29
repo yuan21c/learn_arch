@@ -24,7 +24,7 @@ systemctl status mariadb
 sudo mariadb-secure-installation
 ```
 
-它会逐项询问：设置 root 密码、是否保留 `unix_socket` 认证、删除匿名用户、禁止 root 远程登录、删除测试库、重载权限表。**建议保留 `unix_socket`**（这是 `sudo mariadb` 免密的基础）；若给 root 设了密码，注意登录方式会随之变化，收尾时把 `sudo mariadb` 与 `mariadb -u root -p` 各验证一遍。脚本自身也提示：多数情况并不必跑它。
+它会逐项询问：设置 root 密码、是否保留 `unix_socket` 认证、删除匿名用户、禁止 root 远程登录、删除测试库、重载权限表。**建议保留 `unix_socket`**（这是 `sudo mariadb` 免密的基础）；若给 root 设了密码，注意登录方式会随之变化，收尾时把 `sudo mariadb` 与 `mariadb -u root -p` 各验证一遍。MariaDB 官方 KB 有「多数情况不必跑它」的说明，但脚本自身输出的 NOTE 仍推荐把各项都运行一遍。
 
 三个版本差异要留意：较新的 MariaDB 把客户端命令改名为 `mariadb`（`mysql` 是兼容别名，逐步淡出）；`mysql_secure_installation` 对应改名为 `mariadb-secure-installation`；旧教程里的 `mysqldump` 现在叫 `mariadb-dump`。
 
@@ -98,7 +98,7 @@ sudo mariadb-dump --all-databases --single-transaction > all.sql
 
 - `--single-transaction` 在 InnoDB 上给出不锁表的一致性快照，**必须加**；
 - `--routines`/`--triggers`/`--events` 把存储过程、触发器、事件一并导出，漏了它们恢复出来的库是「缺胳膊少腿」的；
-- 备份文件要给权限（含数据），不要放进 Web 根目录。
+- 备份含全量数据，权限收紧（`600`、放在专属目录），不要放进 Web 根目录。
 
 恢复：
 
@@ -118,7 +118,7 @@ sudo mariadb -e 'SHOW PROCESSLIST'            # 谁在连、在跑什么
 sudo journalctl -u mariadb -b --no-pager | tail -30
 ```
 
-两条最值得先调的参数（写在 `/etc/my.cnf.d/server.cnf` 的 `[mysqld]` 段）：`innodb_buffer_pool_size`（建议为可用内存的 50%–70%，这是影响性能最大的一个）与 `max_connections`（连接池上限，调大要配合内存）。改完 `systemctl restart mariadb`。另有一条升级纪律：**跨大版本升级后跑 `sudo mariadb-upgrade`** 重建系统表，否则新旧元数据不匹配会出各种怪错。
+两条最值得先调的参数（写在 `/etc/my.cnf.d/server.cnf` 的 `[mariadb]` 段）：`innodb_buffer_pool_size`（建议为可用内存的 50%–70%，这是影响性能最大的一个）与 `max_connections`（连接池上限，调大要配合内存）。改完 `systemctl restart mariadb`。另有一条升级纪律：**跨大版本升级后跑 `sudo mariadb-upgrade`** 重建系统表，否则新旧元数据不匹配会出各种怪错。
 
 ## 小结
 

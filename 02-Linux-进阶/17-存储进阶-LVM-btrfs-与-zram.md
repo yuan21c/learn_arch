@@ -12,7 +12,7 @@
 ```bash
 # 环境：VM，新磁盘 /dev/vdb
 sudo pvcreate /dev/vdb                    # 建物理卷
-sudo vgextend vg0 /dev/vdb                # VG 空间不足时的唯一解
+sudo vgextend vg0 /dev/vdb                # 最常用：加一块新 PV；也可 pvresize、换更大 PV 或回收空间
 sudo lvextend -L +10G /dev/vg0/data       # 逻辑卷加 10G
 sudo resize2fs /dev/vg0/data              # ext4 随之扩大
 # XFS 用：sudo xfs_growfs /dev/vg0/data
@@ -69,14 +69,17 @@ sudo umount /mnt
 sudo mount -o subvol=@,compress=zstd /dev/vdb1 /mnt   # 挂指定子卷
 ```
 
-三个关键概念：`subvol=` 挂载选项决定用哪个子卷；`compress=zstd` 透明压缩（CPU 换空间）；**NoCOW**（`chattr +C`）关掉写时复制——数据库、虚拟机镜像、swapfile 这类自己管理并发写的文件必须关，否则随机小写会放大成碎片。
+三个关键概念：`subvol=` 挂载选项决定用哪个子卷；`compress=zstd` 透明压缩（CPU 换空间）；**NoCOW**（`chattr +C`）关掉写时复制——数据库、虚拟机镜像、swapfile 这类自己管理并发写的文件必须关，否则随机小写会放大成碎片。`chattr +C` 只能对空文件/空目录生效；NoCOW 同时关闭数据校验和与压缩，是安全换性能的取舍。
 
 ## btrfs 上的 swapfile
 
-ext4 上 `fallocate` 一把梭的 swapfile，在 btrfs 上不行：fallocate 的空间共享 COW 语义，`swapon` 会拒绝。btrfs 的正确姿势是先关 COW、用非 COW 方式占空间：
+ext4 上 `fallocate` 一把梭的 swapfile 不能原样搬到 btrfs：`swapon` 的拒绝条件是**无洞（完全预分配）+ NODATACOW + 单一 data profile**，不是 fallocate 本身不可用。btrfs-progs ≥ 6.1 推荐直接用 `sudo btrfs filesystem mkswapfile --size 2G /swapfile`（再 `sudo swapon /swapfile`）；手工路线则是先关 COW、用非 COW 方式占空间：
 
 ```bash
 # 环境：VM，btrfs 文件系统上
+sudo btrfs filesystem mkswapfile --size 2G /swapfile   # 首选：一步创建无洞、NODATACOW 的 swapfile
+sudo swapon /swapfile
+# 手工路线（旧版 btrfs-progs）：
 sudo truncate -s 0 /swapfile
 sudo chattr +C /swapfile
 sudo dd if=/dev/zero of=/swapfile bs=1M count=2048   # 预分配物理空间
@@ -84,11 +87,11 @@ sudo chmod 600 /swapfile
 sudo mkswap /swapfile && sudo swapon /swapfile
 ```
 
-文件还不能被压缩（`compress` 会破坏 swap 语义）；休眠到 swapfile 需要 `resume_offset`（第 55 章）。是否接受 0644 的 swapfile 权限因版本而异，`chmod 600` 是无争议做法。
+含活跃 swapfile 的子卷不可快照；`balance`/`scrub` 会跳过相关 block group。文件还不能被压缩（`compress` 会破坏 swap 语义）；休眠到 swapfile 的完整步骤（含 `resume_offset`）见第 55 章休眠小节。是否接受 0644 的 swapfile 权限因版本而异，`chmod 600` 是无争议做法。
 
 ## zram：压缩内存交换
 
-zram 在内存里开一块压缩交换设备，速度远快于磁盘 swap、代价是占内存，适合内存紧张的桌面与 WSL：
+zram 在内存里开一块压缩交换设备，速度远快于磁盘 swap、代价是占内存，适合内存紧张的桌面与 WSL——但 WSL 需内核带 zram 模块且已启用 systemd（第 26 章），不确定时用 VM 验证：
 
 ```bash
 # 环境：VM 或 WSL
@@ -109,7 +112,7 @@ swapon --show                     # 预期看到 /dev/zram0
 - 旧签名用 `wipefs`（先看后清）+ `partprobe` + `udevadm settle` 清理，`lsblk -f` 验证。
 - fstab 验证必须「卸载 → `mount -a` → `findmnt`」，配合 `findmnt --verify`；`mount -a` 不管已挂载条目。
 - btrfs 子卷按 `subvol=` 挂载；数据库/swapfile 类文件 `chattr +C` 关 COW。
-- btrfs swapfile：`truncate` + `chattr +C` + `dd`，不能直接 fallocate；zram 是压缩内存交换，不当休眠目标。
+- btrfs swapfile：`swapon` 要求无洞（完全预分配）+ NoCOW + 单一 data profile，不能对默认 CoW 文件直接 `fallocate`；手工路线先 `chattr +C` 再预分配，首选 `btrfs filesystem mkswapfile`；zram 是压缩内存交换，不当休眠目标。
 
 ## 练习
 
@@ -117,7 +120,7 @@ swapon --show                     # 预期看到 /dev/zram0
 2. 用 `wipefs /dev/vdb` 观察签名列表，回答「`-a` 会清掉哪些、不会清掉什么」（环境：VM；预期：能说出签名与数据区的区别）。
 3. 制造一次 fstab 验证闭环：写条目 → `findmnt --verify` → `umount` → `mount -a` → `findmnt`（环境：VM；预期：每步输出可解释）。
 4. 建 btrfs 子卷 `@test` 并以 `subvol=@test,compress=zstd` 挂载，`findmnt -o OPTIONS` 确认选项（环境：VM；预期：OPTIONS 含 subvol 与 compress）。
-5. 在 btrfs 上按三步造 swapfile 并 `swapon --show` 验证，解释为什么不能 `fallocate`（环境：VM；预期：`swapon --show` 列出该文件）。
+5. 在 btrfs 上造 swapfile 并 `swapon --show` 验证，解释 `swapon` 的拒绝条件（为什么对默认 CoW 文件不能直接 `fallocate`）（环境：VM；预期：`swapon --show` 列出该文件）。
 6. 阅读题：解释 NoCOW 为什么是数据库文件与 swapfile 的前置条件（环境：阅读题）。
 
 ## 自检

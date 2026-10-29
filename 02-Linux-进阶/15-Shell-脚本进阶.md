@@ -11,7 +11,7 @@ Windows 编辑器保存的脚本每行末尾多一个 `\r`，bash 把 `#!/bin/ba
 
 ```bash
 file script.sh        # 出现 "with CRLF line terminators" 即中招
-bash -n script.sh     # 语法检查，常报 $'\r': command not found 类错误
+bash -n script.sh     # 只查语法（报 syntax error）；$'\r': command not found 属执行期错误，排查 CRLF 以 file 结果为准
 sed -i 's/\r$//' script.sh    # 就地去掉 \r
 # 或装 dos2unix 后：dos2unix script.sh
 ```
@@ -53,20 +53,20 @@ echo "name=$name rest=$*"
 
 ## 退出码 128+N：被信号杀死
 
-第 14 章的 0/1/126/127 之外，还有一段是 `128+N`：进程被信号 N 杀死时退出码为 128+N。常见值：
+第 14 章的 0/1/126/127 之外，还有一段是 `128+N`：进程被信号 N 杀死时退出码为 128+N。注意 `128+N` 是 shell 对 wait status 的报告约定，程序也可以主动 `exit 137`，仅凭数字不能断定是被信号杀死。常见值：
 
-| 退出码 | 来源 | 场景 |
-| --- | --- | --- |
-| 130 | 128+SIGINT(2) | 你按了 Ctrl-C |
-| 143 | 128+SIGTERM(15) | `kill` 默认、服务停止 |
-| 137 | 128+SIGKILL(9) | `kill -9`、OOM killer |
+| 退出码 | 来源            | 场景                  |
+| ------ | --------------- | --------------------- |
+| 130    | 128+SIGINT(2)   | 你按了 Ctrl-C         |
+| 143    | 128+SIGTERM(15) | `kill` 默认、服务停止 |
+| 137    | 128+SIGKILL(9)  | `kill -9`、OOM killer |
 
 ```bash
 sleep 100 & pid=$!
 kill "$pid"; wait "$pid"; echo "$?"     # 143
 ```
 
-脚本里判断退出码时把「被信号杀」与「自己 exit 的错误码」分开处理；清理逻辑不要依赖退出码数值，交给 `trap`（下一节）。
+脚本里判断退出码时把「被信号杀」与「自己 exit 的错误码」分开处理；可靠区分要看原始 wait status 或日志（如 systemd journal 里的信号记录），不能只凭 `128+N` 反推；清理逻辑不要依赖退出码数值，交给 `trap`（下一节）。
 
 ## 调试三板斧
 
@@ -76,7 +76,7 @@ bash -x script.sh        # 每条命令展开后打印（+ 前缀），看变量
 PS4='+ $LINENO: ' bash -x script.sh   # 带行号的跟踪
 ```
 
-`bash -x` 的输出把变量展开、分支走向全部摊开，是「逻辑明明对却不工作」的首选。注意 `set -u` 的边界：它只拦**未定义**变量，不拦空值——`rm -rf "$DIR"/` 在 `DIR=""` 时仍是删根的元凶，用 `"${DIR:?DIR is empty}"` 或显式 `[ -n "$DIR" ] || exit 1` 兜底（第 58 章有对应的坑）。
+`bash -x` 的输出把变量展开、分支走向全部摊开，是「逻辑明明对却不工作」的首选。注意 `set -u` 的边界：它只拦**未定义**变量，不拦空值——`rm -rf "$DIR"/` 在 `DIR=""` 时仍会展开成 `rm -rf /`（加引号不解决空值问题），必须用 `"${DIR:?DIR is empty}"` 或显式 `[ -n "$DIR" ] || exit 1` 兜底（第 58 章有对应的坑）。
 
 ## 安全脚手架：mktemp 与 trap
 

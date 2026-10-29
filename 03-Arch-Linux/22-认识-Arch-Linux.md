@@ -2,7 +2,7 @@
 
 篇一第 1 章已经讲过 Linux 的内核、发行版与桌面各自是什么，也对比过几种发行版的定位——本章不重复那些定义。这里只回答一个问题：**为什么这本书选 Arch 作为主线，它和别的发行版到底差在哪、代价是什么。** 建立正确的预期，比记住几条 pacman 命令更重要。
 
-> 本章目标：说清 Arch 的四个关键词与「最小基础系统」的实际含义；分清官方仓库（core/extra/multilib）与 AUR 的本质差别；理解滚动更新把哪些责任转移给了你，以及为什么不能部分升级；知道哪些能力在 WSL 里能练、哪些必须去虚拟机。
+> 本章目标：说清 Arch 的五个关键词与「最小基础系统」的实际含义；分清官方仓库（core/extra/multilib）与 AUR 的本质差别；理解滚动更新把哪些责任转移给了你，以及为什么不能部分升级；知道哪些能力在 WSL 里能练、哪些必须去虚拟机。
 > 对应 Wiki：[Arch Linux](https://wiki.archlinux.org/title/Arch_Linux)、[Arch compared to other distributions](https://wiki.archlinux.org/title/Arch_compared_to_other_distributions)
 
 ## 定位：五个关键词
@@ -112,8 +112,8 @@ sudo pacman -Syu         # 完整升级：先同步数据库，再升级全部
 1. 清点你的系统（环境：WSL）：`pacman -Qe | wc -l` 与 `pacman -Q | wc -l` 各是多少？两者差额说明什么？
 2. 仓库与 AUR 对照（环境：WSL）：挑一个软件，分别在 `pacman -Ss <名字>` 与 AUR 网站搜一次，比较返回的形式（二进制包 vs `PKGBUILD`）。
 3. 只读升级检查（环境：WSL）：运行 `pacman -Qu` 记录可升级数量；再运行 `pacman -Qm` 看有没有外来包，说明这两条命令各自回答什么问题。
-4. 读一期 Arch News（环境：无）：找一期标注需要手动干预的新闻，用自己的话写出「升级前要做什么」。
-5. 边界判断（环境：无）：列四件事——装 nginx、改 GRUB 引导项、给分区做 LUKS 加密、编译内核模块——分别说明该在 WSL 还是虚拟机做，并给出理由。
+4. 读一期 Arch News（环境：阅读题）：找一期标注需要手动干预的新闻，用自己的话写出「升级前要做什么」。
+5. 边界判断（环境：阅读题）：列四件事——装 nginx、改 GRUB 引导项、给分区做 LUKS 加密、编译内核模块——分别说明该在 WSL 还是虚拟机做，并给出理由。
 
 ## 自检
 
