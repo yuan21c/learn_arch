@@ -24,8 +24,9 @@
 ```bash
 sudo useradd --system --user-group --home-dir /opt/demo --shell /usr/sbin/nologin demo
 sudo install -d -o demo -g demo /opt/demo
+sudo install -d -o demo -g demo /opt/demo/data   # 后文 ReadWritePaths 要用
 id demo            # 预期：uid=…(demo) gid=…(demo)
-ls -ld /opt/demo   # 预期：属主属组均为 demo
+ls -ld /opt/demo /opt/demo/data   # 预期：属主属组均为 demo
 ```
 
 ```ini
@@ -124,7 +125,7 @@ ProtectSystem=strict
 ReadWritePaths=/opt/demo/data
 ```
 
-含义：禁止通过 setuid 提权；给服务一个独立的 `/tmp`；`strict` 让整个文件系统层级只读（`/dev`、`/proc`、`/sys` 例外），`/var`、`/opt` 也只读，故必须用 `ReadWritePaths=` 放行真正需要写的数据目录；`full` 才是只读 `/usr`、`/boot`、`/etc`。`ProtectHome=yes` 会隐藏 `/home`、`/root`，对纯服务端应用通常可以直接开。第 53 章会把它们放进完整的安全加固清单。
+含义：禁止通过 setuid 提权；给服务一个独立的 `/tmp`；`strict` 让整个文件系统层级只读（`/dev`、`/proc`、`/sys` 例外），`/var`、`/opt` 也只读，故必须用 `ReadWritePaths=` 放行真正需要写的数据目录。`ReadWritePaths=` 列出的路径必须已存在且属主匹配，否则启动报 `226/NAMESPACE`；确实允许缺失时可写前导 `-`（如 `-/opt/demo/data`）表示忽略不存在，但服务要写数据时仍应提前建好目录；`full` 才是只读 `/usr`、`/boot`、`/etc`。`ProtectHome=yes` 会隐藏 `/home`、`/root`，对纯服务端应用通常可以直接开。第 53 章会把它们放进完整的安全加固清单。
 
 ## 用户级服务
 

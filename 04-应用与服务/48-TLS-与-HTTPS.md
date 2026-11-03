@@ -101,10 +101,10 @@ curl -vk https://example.local/ 2>&1 | grep -E 'SSL|subject|issuer'
 
 ## 练习
 
-1. 自签一张 CN=example.local 的证书并按上文配置 nginx 443，`curl -k` 验证（环境：WSL；预期：返回 200 且响应走 HTTPS）。
+1. 先让域名可解析：在 `/etc/hosts` 加一行 `127.0.0.1 example.local`（或每次请求用 `curl --resolve example.local:443:127.0.0.1`）。自签一张 CN=example.local 的证书并按上文配置 nginx 443，`curl -k https://example.local/` 验证（环境：WSL；预期：返回 200 且响应走 HTTPS）。
 2. 不带 `-k` 跑 `curl https://127.0.0.1/`，记录报错并解释它在防什么（环境：WSL；预期：报证书验证失败）。
 3. 用 `openssl s_client -connect 127.0.0.1:443 </dev/null` 输出里的 `subject`/`issuer` 解释自签证书「自己签自己」的体现（环境：WSL；预期：两者相同或均为你自己）。
-4. 配好 80→301 跳转后用 `curl -I http://example.local/` 验证（环境：WSL；预期：301 且 Location 为 https）。
+4. 配好 80→301 跳转后用 `curl -I http://example.local/` 验证（环境：WSL；预期：301 且 Location 为 https；域名解析同练习 1，也可加 `--resolve example.local:80:127.0.0.1`）。
 5. 阅读题：解释「续期成功但浏览器仍报过期」最可能漏掉了哪一步（环境：阅读题）。
 6. 阅读题：为什么证书要用 `fullchain.pem` 而不是 `cert.pem`（环境：阅读题）。
 

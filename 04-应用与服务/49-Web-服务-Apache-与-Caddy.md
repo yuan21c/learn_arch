@@ -67,7 +67,7 @@ sudo pacman -S caddy
 sudo systemctl enable --now caddy
 ```
 
-配置文件是 `/etc/caddy/Caddyfile`，Arch 默认以 `caddy` 用户运行、站点根是 `/usr/share/caddy`。**默认 Caddyfile 的站点会占 80/443**，与同机的 nginx/httpd 存在端口冲突——同时跑之前先停掉其他服务，或把本地实验块改成 `:8080` 这类端口。一个反代站点：
+配置文件是 `/etc/caddy/Caddyfile`，Arch 默认以 `caddy` 用户运行、站点根是 `/usr/share/caddy`。**默认 Caddyfile 的站点只占 80**；配置域名并启用 HTTPS 后才会占用 443，与同机的 nginx/httpd 存在端口冲突——同时跑之前先停掉其他服务，或把本地实验块改成 `:8080` 这类端口。一个反代站点：
 
 ```caddy
 app.example.com {

@@ -90,15 +90,18 @@ mysql://app:密码@127.0.0.1:3306/app?charset=utf8mb4
 逻辑备份用 `mariadb-dump`，关键是「一致性 + 可重建」：
 
 ```bash
-sudo mariadb-dump --single-transaction --routines --triggers --events app > app.sql
-sudo mariadb-dump --all-databases --single-transaction > all.sql
+umask 077                                      # 新文件默认 600
+stamp=$(date +%F-%H%M)
+sudo mariadb-dump --single-transaction --routines --triggers --events app > "app-$stamp.sql"
+sudo mariadb-dump --all-databases --single-transaction --routines --triggers --events > "all-$stamp.sql"
 ```
 
 普通用户直接跑 `mariadb-dump` 会以当前 OS 用户去连库、报 `Access denied`——用 `sudo` 走 root 的 `unix_socket` 认证（或显式给备份账号的 `-u/-p`）。
 
 - `--single-transaction` 在 InnoDB 上给出不锁表的一致性快照，**必须加**；
 - `--routines`/`--triggers`/`--events` 把存储过程、触发器、事件一并导出，漏了它们恢复出来的库是「缺胳膊少腿」的；
-- 备份含全量数据，权限收紧（`600`、放在专属目录），不要放进 Web 根目录。
+- 备份含全量数据，权限收紧（`600`、放在专属目录），不要放进 Web 根目录。重定向 `>` 由**当前 shell** 创建文件，`sudo` 只作用于前面的 `mariadb-dump`；不先 `umask 077` 就会按调用者的 umask 生成其他用户可读的备份，且 `>` 会静默截断同名旧备份，所以用时间戳文件名。
+- `--all-databases` 会连 `mysql` 系统库一起导出，恢复时覆盖用户与权限表；只备份业务库时不要用它。
 
 恢复：
 

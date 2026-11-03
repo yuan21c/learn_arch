@@ -43,7 +43,7 @@ CREATE DATABASE app OWNER app;
 | 概念     | MariaDB                         | PostgreSQL                                                  |
 | -------- | ------------------------------- | ----------------------------------------------------------- |
 | 用户     | `'app'@'host'`（用户名 + 来源） | `app`（角色），来源由 `pg_hba.conf` 决定                    |
-| 权限授予 | `GRANT ... ON db.*`             | `GRANT ... ON 对象`（表、序列、schema），库级只有 `CONNECT` |
+| 权限授予 | `GRANT ... ON db.*`             | `GRANT ... ON 对象`（表、序列、schema）；库级权限为 `CONNECT`/`CREATE`/`TEMPORARY` |
 | 默认权限 | 新库建好后仍需 `GRANT` 才可访问 | 用户默认对新库无任何权限，需 `GRANT`（见本章后文）          |
 | 超级用户 | `root@localhost`                | `postgres`                                                  |
 
@@ -71,12 +71,13 @@ host    all       all   ::1/128       scram-sha-256
 PostgreSQL 的备份逻辑更简单也更可靠：`pg_dump` 默认在**单个事务里**取一致性快照，不需要额外开关：
 
 ```bash
-sudo -u postgres pg_dump -Fc -f app.dump app              # 自定义格式，支持并行恢复与选择性恢复
-sudo -u postgres pg_dump -Fp -f app.sql app               # 纯 SQL，便于人读与跨版本查看
-sudo -u postgres pg_dumpall --globals-only -f roles.sql   # 角色与权限单独备份
+sudo install -d -m 700 -o postgres -g postgres /var/backups/pg
+sudo -u postgres pg_dump -Fc -f "/var/backups/pg/app-$(date +%F).dump" app   # 自定义格式，支持并行恢复与选择性恢复
+sudo -u postgres pg_dump -Fp -f "/var/backups/pg/app-$(date +%F).sql" app    # 纯 SQL，便于人读与跨版本查看
+sudo -u postgres pg_dumpall --globals-only -f "/var/backups/pg/roles-$(date +%F).sql"   # 角色与权限单独备份
 ```
 
-所有客户端命令都带 `sudo -u postgres`（走 `peer` 认证）或显式 `-U/-h` 并提供密码——直接以普通用户跑会 `role does not exist` 或认证被拒。
+所有客户端命令都带 `sudo -u postgres`（走 `peer` 认证）或显式 `-U/-h` 并提供密码——直接以普通用户跑会 `role does not exist` 或认证被拒。`-f` 必须用**绝对路径**：`sudo -u postgres` 后当前目录通常是你的家目录，postgres 不可写；`/var/backups/pg` 属主 postgres、权限 700，导出的 dump 也只对该用户可读。
 
 恢复：
 
@@ -120,7 +121,7 @@ sudo journalctl -u postgresql -b --no-pager | tail -30
 2. 三种登录（环境：WSL）：分别用 `sudo -u postgres psql`、`psql -U app -h 127.0.0.1`、`psql -U app`（socket）尝试，对照 `pg_hba.conf` 解释结果（预期：收紧后前者免密成功、后两者分别要密码/被 peer 拒绝；若 `psql -U app` 竟然免密成功，说明你的 `pg_hba` 还是默认 `trust`——回看初始化参数）。
 3. 建角色建库（环境：WSL）：建 `app` 角色与 `app` 库，建一张表并插入数据；再换一个只能连不能读的角色，验证「连上但查不到表」。
 4. 权限细节（环境：WSL）：把表属主改为 `app`，或给 `app` 授 `USAGE ON SCHEMA public` + `SELECT ON ALL TABLES`，验证读权限恢复。
-5. 备份恢复（环境：WSL）：`sudo -u postgres pg_dump -Fc` → `sudo -u postgres createdb app2` → `sudo -u postgres pg_restore -d app2` → 校验行数；再用 `pg_dumpall --globals-only` 导出角色，说明为什么换实例必须先恢复它。
+5. 备份恢复（环境：WSL）：`sudo -u postgres pg_dump -Fc -f /tmp/app.dump app` → `chmod 600 /tmp/app.dump` → `sudo -u postgres createdb app2` → `sudo -u postgres pg_restore -d app2 /tmp/app.dump` → 校验行数；再用 `pg_dumpall --globals-only` 导出角色，说明为什么换实例必须先恢复它。
 6. 活动会话（环境：WSL）：开两个 `psql` 会话，一个执行 `BEGIN; SELECT 1;` 后挂起，用 `pg_stat_activity` 找出 `idle in transaction` 的连接与停留时间。
 
 ## 自检

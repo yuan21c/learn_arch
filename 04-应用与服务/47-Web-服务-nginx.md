@@ -100,7 +100,7 @@ server {
 }
 ```
 
-四个 `proxy_set_header` 是必需的，不是装饰：
+四个 `proxy_set_header` 通常必须显式设置，不是装饰（`Host` 不传时默认是 `$proxy_host`，反代一般要传原始 Host）：
 
 - 不传 `Host`，后端生成的绝对 URL、重定向会变成 `127.0.0.1:8000`；
 - 不传 `X-Real-IP`/`X-Forwarded-For`，应用日志里全是 `127.0.0.1`，限流与审计失效；
@@ -160,13 +160,13 @@ sudo tail -20 /var/log/nginx/access.log        # 请求是否到达、返回码�
 
 - 装完先 `enable --now` 并用 `curl -I` 验证；Arch 的 nginx 以 `http` 用户运行，默认没有 `conf.d`，先在 `http {}` 里加 `include /etc/nginx/conf.d/*.conf;`，改完 `nginx -t` → `reload`。
 - 静态站用 `try_files`；SPA 的最后一项换成 `/index.html`。
-- 反代的四个头（`Host`、`X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`）必须有；上传要调 `client_max_body_size`。
+- 反代的四个头（`Host`、`X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`）通常要显式设置；上传要调 `client_max_body_size`。
 - TLS 交给 certbot，续期靠 `certbot-renew.timer`，用 `--dry-run` 验证。
 - 排障三件套：`nginx -t`、`journalctl -u nginx`、`access.log`；`502` 先查后端与地址。
 
 ## 练习
 
-1. 静态站（环境：WSL）：在 `/srv/www/lab` 放一个 `index.html`，写 `conf.d/lab.conf`，用 `curl -I -H 'Host: lab.example.local' http://127.0.0.1/` 验证（不带 Host 会落到默认站点）；故意把目录权限改成 `700`，观察 `403` 并从 error.log 里找到证据。
+1. 静态站（环境：WSL）：在 `/srv/www/lab` 放一个 `index.html`，写 `conf.d/lab.conf`，用 `curl -I -H 'Host: lab.example.local' http://127.0.0.1/` 验证（不带 Host 会落到默认站点）；故意把目录权限改成 `700`，观察 `403` 并从 `journalctl -u nginx` 找证据（Arch 包默认 `error_log stderr`，日志进 journal）；或先配置 `error_log /var/log/nginx/error.log;` 再从 error.log 看。
 2. SPA 路由（环境：WSL）：把 `try_files` 改成 `/index.html`，用 `curl -I -H 'Host: <你的 server_name>' http://127.0.0.1/some/route` 验证返回 200 而不是 404（不带 Host 会落到默认站点）。
 3. 反向代理（环境：WSL）：用第 46 章的 `demo.service` 或 `python3 -m http.server 8000` 起后端，配反代后用 `curl -H 'Host: app.example.local' http://127.0.0.1/` 验证（Host 必须与 `server_name` 一致，否则会落到默认站点）；再删掉 `proxy_set_header Host`，对比后端看到的头。
 4. 413 复现（环境：WSL）：用 `curl -F file=@大文件` 上传超过 1 MB 的文件触发 `413`，调大 `client_max_body_size` 后重试成功。
