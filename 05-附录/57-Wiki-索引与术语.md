@@ -15,6 +15,8 @@
 
 判定标准不是「重不重要」，而是**你有多大概率在半年内真正用到它**。用到概率高的深讲，偶尔用的精讲，可能永远不用的只留索引——这样书才能既覆盖全，又不臃肿。
 
+例外：安装（43-45）、图形（54）、多媒体/打印/电源/输入法（55）虽然半年内用到概率不高，但链路长、必须动手，仍用独立章节的「深讲 + VM 实践」；蓝牙在第 55 章为精讲，A2DP 只留索引。
+
 阅读原则：深讲章节的练习必须做完；精讲读一遍、留个印象、用到时再回来；索引知道「它在哪一页」就够了。
 
 ## 主题域落点表
@@ -23,20 +25,20 @@
 
 | Wiki 主题域        | 代表页面                                                  | 本书落点                      | 级别                         |
 | ------------------ | --------------------------------------------------------- | ----------------------------- | ---------------------------- |
-| 安装               | Installation guide、Partitioning                          | 第 43-45 章                   | 精讲（假设已完成）           |
+| 安装               | Installation guide、Partitioning                          | 第 43-45 章                   | 深讲（VM 实践，假设已完成）  |
 | 启动               | Arch boot process、Kernel、Mkinitcpio、GRUB、Systemd-boot | 第 20、41 章                  | 深讲                         |
 | 包管理             | Pacman、Package signing、Makepkg、PKGBUILD、AUR           | 第 28-31、35-37 章            | 深讲                         |
 | 系统维护           | System maintenance、Pacman troubleshooting、Arch News     | 第 38-40 章                   | 深讲                         |
 | systemd            | Systemd、Timers、Journal                                  | 第 21、32-33、46 章           | 深讲                         |
 | 通用概念           | General recommendations、File systems、Inodes             | 第 5、16 章                   | 深讲                         |
-| 用户与权限         | Users and groups、Sudo、ACL、PAM                          | 第 6-9 章、第 27 章、第 53 章 | 深讲/精讲                    |
+| 用户与权限         | Users and groups、Sudo、ACL、PAM                          | 第 6-9 章、第 27 章、第 53 章 | 深讲（6-9）+ 精讲（27、53）  |
 | Shell              | Bash、Command line、Vim、Core utilities                   | 第 2-4、10、14-15 章          | 深讲                         |
 | 进程               | Processes、Signals、Scheduling                            | 第 13 章                      | 深讲                         |
 | 存储               | LVM、Swap、Disk cloning、Dm-crypt                         | 第 16-17 章                   | 深讲（LVM 精讲，加密索引）   |
-| 网络               | Network configuration、OpenSSH、Nftables、DNS             | 第 18 章                      | 深讲/精讲                    |
+| 网络               | Network configuration、OpenSSH、Nftables、DNS             | 第 18 章                      | 深讲（基础）+ 精讲（SSH/nftables） |
 | 安全               | Security、Firewalls、AppArmor                             | 第 53 章                      | 深讲（低频独立章）           |
 | Web 与数据库       | nginx、Apache、MySQL/MariaDB、PostgreSQL                  | 第 47-51 章                   | 深讲                         |
-| 容器与虚拟化       | Docker、Podman、libvirt                                   | 第 52 章                      | 深讲/精讲                    |
+| 容器与虚拟化       | Docker、Podman、libvirt                                   | 第 52 章                      | 深讲（容器）+ 精讲（libvirt） |
 | 图形与桌面         | Xorg、Wayland、Display manager、GPU                       | 第 54 章                      | 深讲（低频独立章，VM 实践）  |
 | 多媒体、打印、电源 | Multimedia、CUPS、Power management、输入法                | 第 55 章                      | 深讲（低频独立章）+ 长尾索引 |
 | 蓝牙               | Bluetooth（A2DP 在索引）                                  | 第 55 章                      | 精讲 + A2DP 索引             |
@@ -99,10 +101,10 @@
 | `.pacnew`            | 升级时包里的新配置，与你的修改并存                         | 第 34、38 章 |
 | merged-usr           | `/bin`、`/sbin`、`/lib` 并入 `/usr` 的现代布局             | 第 34 章     |
 | nftables             | 现代 Linux 防火墙框架，表/链/规则三层                      | 第 18、53 章 |
-| SSH | 加密远程登录与隧道协议 | 第 18、53 章 |
-| sudo | 按 `/etc/sudoers` 条目代理执行的提权工具 | 第 9、27 章 |
-| systemd | 现代 init/服务管理器，PID 1 | 第 21、32-33 章 |
-| target | systemd 的运行级别分组单元，如 `multi-user.target` | 第 32 章 |
+| SSH                 | 加密远程登录与隧道协议                               | 第 18、53 章   |
+| sudo                | 按 `/etc/sudoers` 条目代理执行的提权工具             | 第 9、27 章    |
+| systemd             | 现代 init/服务管理器，PID 1                           | 第 21、32-33 章 |
+| target              | systemd 的运行级别分组单元，如 `multi-user.target`    | 第 32 章      |
 | AppArmor | 按路径限制程序资源访问的强制访问控制 | 第 53 章 |
 | X11 / Wayland | 两代显示服务器协议 | 第 54 章 |
 | PipeWire | 当前桌面常用的音频服务栈 | 第 55 章 |
