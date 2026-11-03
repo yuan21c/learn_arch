@@ -1,1 +1,135 @@
+# ============================================
+# 项目特定：本地不追踪的目录
+# ============================================
+.superpowers/
 .trae/
+docs/
+scripts/
+
+# ============================================
+# mdBook 构建产物
+# ============================================
+book/
+zh/book/
+en/book/
+
+# ============================================
+# Python 环境与缓存
+# ============================================
+# 虚拟环境（常见命名）
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 字节码与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 打包 / 分发产物
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 测试 / 覆盖率 / 类型检查缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+coverage.xml
+
+# 环境变量文件
+.env
+.env.*
+!.env.example
+
+# Python 版本与工具锁文件（按项目类型取舍，默认保留在版本控制中）
+# .python-version
+# uv.lock
+# poetry.lock
+# Pipfile.lock
+
+# ============================================
+# AI 编程工具：本地配置、会话与缓存
+# ============================================
+.claude/
+*.claude.bak
+.claude-sessions/
+.claude-context/
+claude-chat-*.txt
+claude-context.md
+
+.cursor/
+.cursor-tutor/
+*.cursor
+.cursorignore
+.cursor-server/
+
+.copilot/
+.github-copilot/
+copilot-chat-*.md
+
+.aider*
+
+.continue/
+
+.codeium/
+.windsurf/
+.windsurfrules
+
+.tabnine/
+
+.cody/
+
+.codex/
+
+.omc/
+
+AGENTS.md
+
+docs/superpowers/
+
+# ============================================
+# 操作系统与编辑器杂项
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================
+# 通用缓存与日志
+# ============================================
+*.log
+.cache/
