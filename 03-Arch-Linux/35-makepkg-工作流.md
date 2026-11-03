@@ -11,10 +11,12 @@ arch=('any')                # 与架构无关
 license=('MIT')
 depends=()                  # 运行期依赖
 makedepends=()              # 构建期依赖
-source=()                   # 本地示例不拉远程源
-sha256sums=('SKIP')         # 本地示例；内容固定的发布包必须填真实校验和（VCS/签名文件例外，见第 36 章）
-package() { install -Dm755 hello.sh "$pkgdir/usr/bin/hello-arch"; }
+source=('hello.sh')         # 与 PKGBUILD 放在同一目录的本地源文件
+sha256sums=('1338391f057fed0e3a77101fd0d6929b31bba37bbd2e2d0cb70c51413ea77a78')
+package() { install -Dm755 "$srcdir/hello.sh" "$pkgdir/usr/bin/hello-arch"; }
 ```
+
+`source` 与 `sha256sums` 的元素个数必须相等：每个源文件对应一个校验和；只有 `source=()` 为空时才写 `sha256sums=()`。上面的哈希对应第 36 章 `hello.sh` 的原文，可用 `sha256sum hello.sh` 自行核对；发布包不得保留 `SKIP`（VCS/签名文件例外，见第 36 章）。
 
 > 本章目标：能独立完成一次从 PKGBUILD 到 `.pkg.tar.zst` 的构建，并解释构建目录、依赖安装和安装产物的去向。
 > 对应 Wiki：[Makepkg](https://wiki.archlinux.org/title/Makepkg)、[Creating packages](https://wiki.archlinux.org/title/Creating_packages)
@@ -128,7 +130,7 @@ makepkg --printsrcinfo > .SRCINFO
 安装与核对：
 
 ```bash
-sudo pacman -U ./hello-arch-1.0.0-1-any.pkg.tar.zst
+sudo pacman -U ./hello-arch-0.1.0-1-any.pkg.tar.zst
 pacman -Ql hello-arch
 hello-arch
 ```

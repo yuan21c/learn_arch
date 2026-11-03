@@ -20,7 +20,7 @@ ping -c 3 archlinux.org
 timedatectl
 ```
 
-UEFI 文件输出 `64` 或 `32` 才算 UEFI 启动；文件不存在说明当前是 BIOS/CSM 模式，此时 `efibootmgr` 会报 EFI 变量不可用，GRUB 的 EFI 目标也会失败。处理方式是关机，在虚拟机固件设置中改用 UEFI，重新进入 Live 环境。
+UEFI 文件输出 `64` 或 `32` 才算 UEFI 启动；输出 `32` 表示 32 位 UEFI（IA32），本书不覆盖该场景（需 32 位引导器或混合模式），后续步骤以 64 位 UEFI 为准；文件不存在说明当前是 BIOS/CSM 模式，此时 `efibootmgr` 会报 EFI 变量不可用，GRUB 的 EFI 目标也会失败。处理方式是关机，在虚拟机固件设置中改用 UEFI，重新进入 Live 环境。
 
 有线网络通常自动配置；无线用 `iwctl device list`、`iwctl station wlan0 connect "SSID"` 连接。`ip link` 中除 `lo` 外应有 `UP` 状态接口，`ping` 能解析域名。没有网络时 `pacstrap` 直接失败。
 
@@ -71,7 +71,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 arch-chroot -S /mnt
 ```
 
-`-S` 让 chroot 以 systemd 模式运行；这一步对 systemd-boot 尤其关键——普通 `arch-chroot` 运行在 PID namespace 中，`bootctl install` 会写 ESP 文件但**不写固件启动项**（NVRAM），真机上就会出现「文件都在、固件菜单却没有 Arch」。只想改配置、不装引导器时，`arch-chroot /mnt` 也可以。
+`arch-chroot -S` 以 systemd 模式运行：它通过 `systemd-run` 生成临时服务，把 namespace/chroot 管理交给 service manager，适合需要 systemd 工具在受管环境中工作的场景。它本身不保证固件变量可写：`bootctl install` 要写 NVRAM，前提是 chroot 内能看到 efivarfs——进入后先执行 `ls /sys/firmware/efi/efivars`，有输出才说明固件变量可访问；看不到时回宿主机确认 efivarfs 已挂载。只想改配置、不装引导器时，`arch-chroot /mnt` 即可。
 
 进入后 `/` 就是新系统。`systemctl enable` 可以离线创建自启链接；`systemctl start` 不会启动新系统服务，因为 PID 1 仍是 Live 环境。退出与卸载：
 
@@ -89,7 +89,7 @@ umount -R /mnt
 | 配置复杂度   | 中等，自动生成菜单              | 低，手写 entry         |
 | 菜单生成     | `grub-mkconfig`，可探测其他系统 | 不自动探测，需手动维护 |
 | 文件系统支持 | 广，可读 ext4、btrfs、xfs       | 主要依赖 ESP 的 FAT32  |
-| 加密根分区   | 支持 LUKS，LUKS2 默认参数受限   | 依赖 initramfs 解锁    |
+| 加密根分区   | 可加密 `/boot`（由 GRUB 解密），根分区仍由 initramfs 解锁；LUKS2 需用 PBKDF2（GRUB 默认不支持 Argon2id） | 依赖 initramfs 解锁 |
 | 适合         | 双系统、复杂分区、需要救援菜单  | 单系统、简洁 UEFI      |
 
 第一次安装建议 GRUB，出错时还能进 GRUB 命令行救援。两种引导器都要求 ESP 可写；本书把 ESP 挂在 `/boot`，因此 GRUB 用 `--efi-directory=/boot`，systemd-boot 直接装到 `/boot`。若 ESP 挂 `/efi`、`/boot` 另分区，参数要随之改变，挂载点与参数不一致是引导失败的高频原因。
@@ -102,15 +102,24 @@ grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
 grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-`--target=x86_64-efi` 用于 64 位 UEFI，不能在 BIOS 模式下使用；`--efi-directory` 必须是 ESP 挂载点；`--bootloader-id` 是固件菜单显示名。`grub-mkconfig` 输出中出现 `Found linux image` 说明识别到了内核，随后用 `efibootmgr -v` 确认存在指向 `grubx64.efi` 的条目。
+`--target=x86_64-efi` 用于 64 位 UEFI，不能在 BIOS 模式下使用；`--efi-directory` 必须是 ESP 挂载点；`--bootloader-id` 是固件菜单显示名。`grub-mkconfig` 输出中出现 `Found linux image` 说明识别到了内核，随后用 `efibootmgr -v` 确认存在指向 `grubx64.efi` 的条目。注意 `grub-install` 与 `bootctl install` 一样会写 NVRAM 并调整启动顺序；双系统机器执行前同样先记录 `efibootmgr -v`。
 
 ### systemd-boot
 
-systemd-boot 由 systemd 提供，无需额外包。在 chroot 中安装：
+systemd-boot 由 systemd 提供，无需额外包。`bootctl install` 会把 systemd-boot 与 fallback loader 写入 ESP 的 `EFI/systemd/`、`EFI/BOOT/`（覆盖已有的 `EFI/BOOT/BOOTX64.EFI`），并写入或调整固件 NVRAM 启动项、把 `Linux Boot Manager` 置为优先；双系统机器上这会改变原有启动顺序。
+
+进 chroot 后先检查、备份，再安装并验证（chroot 内是 root，无需 `sudo`）：
 
 ```bash
+ls /boot/EFI/BOOT                      # 看已有 fallback 文件
+cp -a /boot/EFI/BOOT /root/EFI-BOOT.bak
+efibootmgr -v                          # 记录当前启动项与顺序
 bootctl install
+bootctl status                         # 确认 Boot Loader、ESP 与固件条目
+efibootmgr -v                          # 确认指向 systemd-bootx64.efi 的条目与顺序
 ```
+
+> **注意**：若 `EFI/BOOT` 里已有其他系统的 fallback（例如 Windows 的 `BOOTX64.EFI`），`bootctl install` 会覆盖同名文件；需要保留就先备份、装完后恢复。不要为清理条目而清空整个启动顺序。
 
 写 `/boot/loader/loader.conf`：
 
@@ -132,7 +141,7 @@ initrd  /initramfs-linux.img
 options root=UUID=<根分区UUID> rw
 ```
 
-路径相对 ESP 根目录，`<根分区UUID>` 要替换成 `blkid` 输出的实际值。微码二选一：`HOOKS` 里有 `microcode`（默认）就不要再加微码 `initrd`；只有走独立 initrd 方案时才写两行、微码在前（第 41 章）。`root=` 写错会停在 `VFS: Unable to mount root fs`，可用 `bootctl status` 验证。
+路径相对 ESP 根目录，`<根分区UUID>` 要替换成 `blkid` 输出的实际值。微码二选一：`HOOKS` 里有 `microcode`（默认）就不要再加微码 `initrd`；只有走独立 initrd 方案时才写两行、微码在前（第 41 章）。`root=` 写错会停在 `VFS: Unable to mount root fs`。`bootctl status` 只能确认 entry 被发现，不能证明根分区可挂载；用 `blkid -s UUID -o value <根分区>` 与 entry 里的 UUID 逐字对照，再 `findmnt` 或临时挂载该分区验证。
 
 最后在 chroot 中执行 `mkinitcpio -P`，按 `/etc/mkinitcpio.d/` 的预设重建全部 initramfs。安装内核包时通常已自动生成，但修改 `HOOKS`/`MODULES`、添加微码或发现 `/boot` 缺少 initramfs 时必须重跑。
 

@@ -72,7 +72,7 @@ systemd=true
 
 ## 没有引导器与「重启」
 
-**检查**：WSL 由 Windows 启动，没有 GRUB/systemd-boot、ESP 或 initramfs 阶段；`systemctl reboot` 不等于重启 Windows。
+**检查**：WSL 由 Windows 启动，没有 GRUB/systemd-boot 与 ESP；initramfs 由微软的 `mini_init` 固定提供，不经过常规 Arch initramfs。`systemctl reboot` 不等于重启 Windows。
 
 **修复**：需要重启用户空间时，在 Windows 侧执行 `wsl --shutdown`，再重新进入。引导器实验见 第 44 章 pacstrap、chroot 与引导器。
 
@@ -132,7 +132,7 @@ wsl --import Arch-test D:\wsl\arch-test D:\backup\arch-2026-10-27.tar
 
 ## 何时放弃 WSL 转虚拟机
 
-出现以下需求时，WSL 不是合适环境：加载自定义内核模块、编译或替换内核、练习分区/LUKS/文件系统、GRUB 或 systemd-boot、initramfs、直通硬件、完整的桌面与显示管理器、需要稳定 IP 或长期运行的服务。
+出现以下需求时，WSL 不是合适环境：加载自定义内核模块、编译或替换内核、练习分区/LUKS/文件系统、GRUB 或 systemd-boot、自定义 initramfs、直通硬件、完整的桌面与显示管理器、需要稳定 IP 或长期运行的服务。能力边界与可选启用方式见 [第 24 章](24-WSL-的能力边界.md)。
 
 这些场景使用 Hyper-V、VirtualBox 或 QEMU，按 第 43 章「安装准备与分区」 开始；判断标准是故障是否来自 WSL 本身，而不是「WSL 能不能凑合」。
 

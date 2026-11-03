@@ -40,7 +40,7 @@ makepkg -si
 四步不能省：
 
 1. `git clone`：只取构建材料，不执行任何脚本。
-2. 读 `PKGBUILD`：确认 `source` 域名、校验和、`build()`/`package()` 行为。
+2. 读 `PKGBUILD` 全文：确认 `source` 域名、校验和、`build()`/`package()` 行为，以及 `install=` 指向的 `.install` 脚本；`source` 里的本地文件与补丁逐个打开读。
 3. `makepkg -si`：`-s` 安装官方仓库依赖，`-i` 构建后安装。
 4. 验证：`pacman -Ql example`、实际运行程序、检查是否有异常文件。
 
@@ -56,9 +56,13 @@ AUR 没有统一的代码审计，恶意 PKGBUILD 可以在构建时执行任意
 | 校验和   | 全部 `SKIP`，或校验和与源码版本明显不匹配                 |
 | 构建步骤 | `curl ... \| bash`、`wget ... \| sh`、`base64 -d \| bash` |
 | 权限     | `chmod 777`、`sudo`、修改 `/etc` 或 `/usr` 的脚本         |
+| `install=` | 指向的 `.install` 含 `pre_install`/`post_install` 等函数，安装阶段以 root 执行，必须逐行读 |
+| 本地文件 | `source` 中的本地文件、补丁（非 URL 项）可能夹带未展示的改动，逐个打开核对 |
 | 安装路径 | 文件写到 `$pkgdir` 之外，或伪装成系统包                   |
 | 维护状态 | 长期未更新、大量「out-of-date」标记、评论中报告构建失败     |
 | 社区信号 | 投票极少、维护者新注册、评论被删除或无人回应              |
+
+`install=` 列出的 `.install` 不是普通脚本：`pre_install`/`post_install`/`pre_upgrade`/`post_upgrade`/`pre_remove`/`post_remove` 由 pacman 在安装、升级、卸载阶段以 root 执行，审查时要像对待 `PKGBUILD` 一样逐行读。
 
 几条硬规则：
 
@@ -104,11 +108,11 @@ makepkg -si
 ```bash
 cd ~/build/example
 git pull
-git diff ORIG_HEAD..HEAD -- PKGBUILD   # ORIG_HEAD 是 pull 前的位置
+git diff ORIG_HEAD..HEAD               # ORIG_HEAD 是 pull 前的位置；审查整个目录，别只看 PKGBUILD
 makepkg -si
 ```
 
-若 `PKGBUILD` 没变但上游版本变了，也要确认 `pkgver` 与校验和同步更新。
+若 `PKGBUILD` 没变但上游版本变了，也要确认 `pkgver` 与校验和同步更新；`.install` 与补丁的改动同样不能漏读。
 
 系统升级后 AUR 包可能失效，常见原因是共享库 soname 变化：
 

@@ -49,7 +49,7 @@ wsl -d Arch
 要点：
 
 - `--from-file` 是官方手动安装路线；省略 `--name` 时实例名默认为 `archlinux`。与已有实例同名时，`wsl --install` 的处理方式随版本变化，**以当前 Wiki 与命令提示为准**。
-- 实例的虚拟磁盘（`ext4.vhdx`）由 WSL 管理，默认位置见 `wsl --version` 输出；需要固定盘符时可在安装前设置默认安装目录。
+- 实例的虚拟磁盘（`ext4.vhdx`）由 WSL 管理，默认位于 `%LOCALAPPDATA%\Packages\<发行版包名>\LocalState\`；用 `wsl -l -v` 看实例版本，具体实例路径可在注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss\{GUID}` 的 `BasePath` 下核对。需要固定盘符时可在安装前设置默认安装目录。
 - 进入后默认是 root，systemd 与默认用户仍在第 26 章配置。
 - 旧的 bootstrap 压缩包（`archlinux-bootstrap-x86_64.tar.zst`）内容位于顶层 `root.x86_64/` 目录，不是可直接导入的根布局，需要解压、重打包后才可用；本书不采用这条路线，需要时以 Wiki 为准。
 

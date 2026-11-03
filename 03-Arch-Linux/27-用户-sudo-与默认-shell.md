@@ -84,6 +84,13 @@ default=arch
 wsl --shutdown
 ```
 
+也可以不改 `wsl.conf`，直接用命令改默认用户（`wsl --manage` 需较新的 Store 版，版本门槛以 `wsl --help` 为准；旧版无此选项就回到 `wsl.conf` 路线）：
+
+```powershell
+wsl --manage Arch --set-default-user arch
+wsl --terminate Arch      # 结束实例让改动生效，再进入
+```
+
 重新进入后验证 `whoami` 与 `id`。有两个坑：
 
 - **用户必须已存在**：`default=arch` 而 `arch` 不存在时，WSL 会回退到 root，看起来像「配置没生效」；先建用户再改配置。
@@ -94,7 +101,7 @@ wsl --shutdown
 ## 默认 shell
 
 ```bash
-chsh -s /bin/bash arch     # 改指定用户的登录 shell
+sudo chsh -s /bin/bash arch     # 改指定用户的登录 shell（改别人需 root）
 chsh -l                    # 列出 /etc/shells 中允许的 shell
 ```
 

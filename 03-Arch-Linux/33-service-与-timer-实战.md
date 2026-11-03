@@ -30,7 +30,7 @@ unit 文件放在三个位置：`/usr/lib/systemd/system/` 由软件包提供，
 
 `Type` 的选择：
 
-- `simple`：默认值。进程一启动就算服务已就绪，进程必须留在前台。
+- `simple`：默认值。systemd 认为主进程 fork 后即就绪，主程序真正启动失败要等到崩溃才会被发现；进程必须留在前台。若希望主程序 exec 成功才算启动，用 `Type=exec`（更严格，推荐）。
 - `oneshot`：进程执行完就退出，适合一次性任务；常用于配合 timer。
 - `notify`：进程通过 `sd_notify` 报告就绪，适合启动慢但需要精确就绪状态的服务。
 
@@ -84,7 +84,7 @@ Type=oneshot
 ExecStart=/usr/bin/paccache -rk2
 ```
 
-> systemd 只支持整行注释：`#` 必须位于行首，写在指令后面会被当成参数。
+> systemd 支持整行注释：行首的 `#` 或 `;` 都是注释符，写在指令后面会被当成参数。
 
 `/etc/systemd/system/paccache-clean.timer`：
 

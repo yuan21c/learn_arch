@@ -47,7 +47,7 @@ unit 的名字后缀决定类型：
 
 ### [Install] 四字段与 target
 
-`[Install]` 常用四个字段：`WantedBy=`（把本单元挂进某个 target 的 `.wants/`，最常用）、`RequiredBy=`（强依赖，本单元失败会拖垮 target）、`Alias=`（给单元起别名链接）、`Also=`（enable 本单元时一并启用的其他单元）。自启挂到哪个 target 决定它在哪种运行级别生效：`multi-user.target`（命令行多用户）与 `graphical.target`（图形）用 `systemctl get-default` 查询、`sudo systemctl set-default` 切换，`systemctl isolate` 只影响本次启动。
+`[Install]` 常用四个字段：`WantedBy=`（把本单元挂进某个 target 的 `.wants/`，最常用）、`RequiredBy=`（enable 时创建 `.requires` 链接，仅影响开机自启；运行时强依赖要用 `[Unit]` 段的 `Requires=`/`BindsTo=` 配 `After=`）、`Alias=`（给单元起别名链接）、`Also=`（enable 本单元时一并启用的其他单元）。自启挂到哪个 target 决定它在哪种运行级别生效：`multi-user.target`（命令行多用户）与 `graphical.target`（图形）用 `systemctl get-default` 查询、`sudo systemctl set-default` 切换，`systemctl isolate` 只影响本次启动。
 
 `enable` 与 `start` 是两件事：`enable` 只按 `[Install]` 段创建开机自启的符号链接，不改变当前运行状态；`start` 只影响当前，不会让服务在下次开机自动运行。排查「改了配置但没生效」时，先确认服务是否真的重启过。
 

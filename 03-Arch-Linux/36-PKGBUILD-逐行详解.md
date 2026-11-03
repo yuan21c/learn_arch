@@ -41,7 +41,7 @@ package_mytools-doc()  { install -Dm644 doc.1 "$pkgdir/usr/share/man/man1/mytool
 
 ## 依赖与包关系
 
-四类依赖的边界：`depends` 在运行时必须存在；`makedepends` 只在构建时需要；`checkdepends` 只供 `check()` 使用；`optdepends` 不会被自动安装，仅在 `pacman -Si` 和安装提示中显示。
+四类依赖的边界：`depends` 在运行时必须存在；`makedepends` 只在构建时需要；`checkdepends` 只供 `check()` 使用；`optdepends` 不会被自动安装，仅在 `pacman -Si`/`-Qi` 和安装提示中显示。
 
 `optdepends` 推荐写成 `'包名: 用途说明'`；`conflicts`、`provides`、`replaces` 常用于改名或替代场景：
 
@@ -64,7 +64,7 @@ sha256sums=('SKIP' '3f2c...')
 updpkgsums          # pacman-contrib 提供，自动重算并写回
 ```
 
-内容固定的发布 tarball 应填真实校验和，不应保留 `SKIP`；但对 VCS 源（git/svn 等，校验和随提交变化）与 `.sig`/`.asc` 签名文件，`SKIP` 是标准做法——官方仓库的 `-git` 包与 PKGBUILD(5) 示例都这么写，完整性由 commit 钉死与 PGP 验证保证。上游若有 `.sig` 或 `.asc`，把它加入 `source`，并在 `validpgpkeys` 填完整 40 位指纹；只填密钥 ID 或短指纹不够。
+内容固定的发布 tarball 应填真实校验和，不应保留 `SKIP`；对 VCS 源（git/svn 等，校验和随提交变化）与 `.sig`/`.asc` 签名文件，`SKIP` 是标准做法。但 `SKIP` 不等于“已校验”：VCS 包通常用 `source=('git+...#commit=<哈希>')` 钉住某次提交，缺省则跟随上游默认分支的最新提交；PGP 验证只在源里带 `.sig`/`.asc` 且 PKGBUILD 声明 `validpgpkeys` 时发生。审查 AUR 的 `-git` 包时要看 `pkgver()` 与 `#commit=`，不能只看到 `SKIP` 就放行。上游若有签名文件，把它加入 `source`，并在 `validpgpkeys` 填完整 40 位指纹；只填密钥 ID 或短指纹不够。
 
 ## 四个函数与执行顺序
 

@@ -132,7 +132,7 @@ pacman -Ql systemd | grep '/man/'
 ## 练习
 
 1. 从 Wiki 的 Main page 找到 Pacman 页面，列出它的 Related articles 中三个页面。（环境：阅读题）
-2. 用 `man pacman` 查出 `-Qdt` 的含义，并与 `pacman --help` 对照。（环境：阅读题）
+2. 用 `man pacman` 查出 `-Qdt` 的含义，并与 `pacman -Q --help` 对照（`pacman --help` 不展开各子命令的选项）。（环境：阅读题）
 3. 用 `pacman -Ql` 找出一个包自带的配置文件或 man page。（环境：阅读题）
 4. 把本节笔记模板套用到你最近一次命令报错上，写出四段记录。（环境：阅读题）
 

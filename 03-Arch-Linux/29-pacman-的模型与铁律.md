@@ -136,7 +136,7 @@ Total Download Size:   18.42 MiB
 3. 依赖求解，计算升级、安装、卸载集合，检查冲突。
 4. 下载缺失的包到缓存，校验 SHA-256 与 PGP 签名，检查磁盘空间。
 5. 执行 `PreTransaction` hooks。
-6. 逐包解包：新装包运行 `pre_install` 脚本、写入文件、运行 `post_install` 脚本；被替换的旧包走 `pre_upgrade`/`post_upgrade`（升级事务不会运行 install 系列脚本）。随后更新本地数据库。
+6. 逐包解包：新装包运行 `pre_install` 脚本、写入文件、运行 `post_install` 脚本；被升级的包走 `pre_upgrade`/`post_upgrade`；本次事务中新装的包（含新拉入的依赖）走 `pre_install`/`post_install`（升级包自身不会运行 install 系列脚本）。随后更新本地数据库。
 7. 执行 `PostTransaction` hooks，例如 systemd 的 `daemon-reload`、`sysusers` 相关 hook。
 8. 释放锁，把每一步写入 `/var/log/pacman.log`。
 
@@ -155,7 +155,7 @@ Total Download Size:   18.42 MiB
 
 1. 列出 `sync`、`local`、缓存三个目录，用 `du -sh` 记录大小（环境：WSL，只读）。
 2. 随机选一个已安装包，用 `pacman -Qi` 找到它的安装原因，再用 `-Qe`/`-Qd` 验证（环境：WSL，只读）。
-3. 用 `pacman -Sg base-devel` 查看组成员，不安装；说明组与元包的区别（环境：WSL，只读）。
+3. 用 `pacman -Sg xorg` 查看包组成员，不安装；再用 `pacman -Si base-devel` 看元包信息，说明包组与元包的区别（环境：WSL，只读；`base-devel` 是元包，不在 `-Sg` 里）。
 4. 读懂「部分升级」而不制造它（环境：WSL，只读）：记录 `pacman -Qu` 的待升级列表与 `pacman -Q linux 2>/dev/null || echo 'WSL 无 linux 包'`（WSL 无内核包时改用 `pacman -Q bash`）的本地版本，用自己的话写出「如果只 `-Sy` 再装某个包，会与哪一层数据不一致」。**不要真的用 `-Sy` 装包**；想演练请在虚拟机的快照里做。
 
 ## 自检

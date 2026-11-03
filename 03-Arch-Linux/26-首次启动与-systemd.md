@@ -1,6 +1,6 @@
 # 第 26 章 首次启动与 systemd
 
-第一次进入 Arch WSL，先不要急着装软件。本章从第 25 章「装好、能进」的状态开始，依次完成环境自检、`/etc/wsl.conf` 配置、基础工具安装、首次更新与首个普通用户。先确认你面对的到底是什么：发行版、内核、PID 1、WSL 版本。环境不对，后面的命令都会变形。
+第一次进入 Arch WSL，先不要急着装软件。本章从第 25 章「装好、能进」的状态开始，依次完成环境自检、`/etc/wsl.conf` 配置、首次更新、基础工具安装与首个普通用户。先确认你面对的到底是什么：发行版、内核、PID 1、WSL 版本。环境不对，后面的命令都会变形。
 
 > 本章目标：完成首次环境自检，启用 systemd，更新系统并装好基础工具。
 > 对应 Wiki：[WSL](https://wiki.archlinux.org/title/WSL)
@@ -48,8 +48,9 @@ enabled=true
 enabled=true
 appendWindowsPath=false
 
-[user]
-default=arch
+# 等下一节「创建首个普通用户」建好 arch 后，再取消下面两行注释
+# [user]
+# default=arch
 ```
 
 各项作用：
@@ -78,6 +79,20 @@ systemctl is-system-running
 systemctl --failed
 ```
 
+## 首次更新
+
+镜像自带的同步数据库在生成后即开始老化，先装包可能遇到 404，或装到与本地库不匹配的版本；因此首次进入先做一次全量升级，这也与第 29 章「禁止部分升级」一致。
+
+```bash
+pacman -Syu        # root 直用；普通用户写 sudo pacman -Syu
+```
+
+第一次更新要完整读输出，尤其是 `:: Proceed with installation?` 之前的包列表和提示。
+
+官方镜像通常已初始化密钥环。若 `pacman -Syu` 报签名错误，不要反复执行 `pacman-key --init`；按第 31 章的密钥环流程处理（先更新 `archlinux-keyring`，再视情况重建）。
+
+若你在旧镜像里已经先装过包，补一次 `pacman -Syu` 即可回到一致状态。
+
 ## 安装基础工具（含 sudo）
 
 首次进入通常是 root（第 25 章两条路线均默认 root）：下面命令在 root 下**省略 `sudo`**，普通用户执行时才保留——别在装好 `sudo` 之前使用它。
@@ -95,16 +110,6 @@ pacman -S --needed base-devel git sudo reflector pacman-contrib
 | `pacman-contrib` | 提供 `checkupdates`、`paccache` 等工具    |
 
 `--needed` 的语义是「**已是最新版本的包跳过**」——装过但版本旧的包仍会升级，不是「装过就不再动」。
-
-## 首次更新
-
-```bash
-pacman -Syu        # root 直用；普通用户写 sudo pacman -Syu
-```
-
-第一次更新要完整读输出，尤其是 `:: Proceed with installation?` 之前的包列表和提示。
-
-官方镜像通常已初始化密钥环。若 `pacman -Syu` 报签名错误，不要反复执行 `pacman-key --init`；按第 31 章的密钥环流程处理（先更新 `archlinux-keyring`，再视情况重建）。
 
 ## 创建首个普通用户
 
@@ -138,7 +143,7 @@ ps aux | grep '[p]acman'
 ## 小结
 
 - 首次进入先做五项自检，确认发行版、内核、PID 1、systemd 状态和 WSL 版本。
-- 顺序记牢：先装 `sudo`（root 直用省略它）→ 更新 → 建用户设密码 → 再改 `[user] default=`。
+- 顺序记牢：先全量更新（`pacman -Syu`）→ 再装 `sudo` 等基础工具 → 建用户设密码 → 再改 `[user] default=`。
 - 用 `/etc/wsl.conf` 启用 systemd，并在 Windows 侧 `wsl --shutdown` 后验证。
 - 首次更新用 `pacman -Syu`，密钥环只在报错时初始化；`--needed` 是「最新才跳过」。
 - 启动失败先看 PID 1、锁文件、镜像源和网络。

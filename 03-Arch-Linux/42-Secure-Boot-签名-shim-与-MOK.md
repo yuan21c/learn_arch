@@ -33,13 +33,24 @@ mokutil --sb-state    # 看 Secure Boot 当前是否启用（需 mokutil）
 
 ## 路线二：sbctl 自签
 
+`sbctl create-keys` 在本地生成密钥，`sbctl enroll-keys` 会把公钥写入固件 `PK`/`KEK`/`db`。写固件是不可逆的系统级改动，先完成下面危险块中的检查与备份再执行。
+
+> **危险**：`enroll-keys` 直接改写固件密钥库（PK/KEK/db），写错或中途断电可能导致机器无法启动。执行前必须：
+> 1. 用 `sudo sbctl status` 确认 `Setup Mode: Enabled`，否则固件会拒绝写入；
+> 2. 备份现状——`sudo efibootmgr -v > efibootmgr.bak`、`sudo sbctl status > sbctl-status.bak`，并拍照记录固件里「清除 PK / 恢复出厂密钥」入口的位置；
+> 3. 保留微软 CA（`--microsoft`），否则 Windows 或带微软签名的 option ROM 可能无法启动。
+>
+> 以下命令均需 root（示例中已写 `sudo`）。写入后若无法启动：进固件设置清除 PK 或恢复出厂密钥（厂商菜单名不同），再用 Live ISO 修复引导。部分厂商固件不允许写入自定义密钥，此时只能退回「关闭 Secure Boot」或 shim + MOK 路线（以 Wiki 与固件手册为准）。
+
 ```bash
-# 环境：VM
-pacman -S sbctl
-sbctl create-keys
-sbctl enroll-keys --microsoft   # 把自签密钥写入固件 db（保留微软 CA，以 Wiki 为准）
-sbctl status                    # 预期能看到密钥信息与 Setup Mode 状态
+# 环境：VM，需 root
+sudo pacman -S sbctl
+sudo sbctl create-keys
+sudo sbctl enroll-keys --microsoft   # 把自签密钥写入固件 db（保留微软 CA，以 Wiki 为准）
+sudo sbctl status                    # 预期能看到密钥信息，且 Setup Mode 已变为 Disabled
 ```
+
+写入完成后执行一次 `sudo sbctl status` 验证 `Setup Mode: Disabled` 且密钥已登记，再重启一次确认能进系统。
 
 签名启动链上的每个 EFI 二进制，`-s` 让文件登记在册、后续重签可一键完成：
 
@@ -52,7 +63,7 @@ sbctl verify                    # 预期每个文件都已签，无 NOT SIGNED
 
 要点：
 
-- `enroll-keys` 要在 Setup Mode 下做：固件未启用 SB、或 PK 尚未被厂商占用时才可写入。
+- `enroll-keys` 要在 Setup Mode 下做：Setup Mode 表示固件 `PK` 尚未注册（PK 为空或已被清除），不是「Secure Boot 已关闭」；只有此时才允许写入自有密钥。
 - 内核升级会替换 `/boot/vmlinuz-linux`，旧签名随之失效。先确认 pacman hook 是否自动重签（`pacman -Ql sbctl | grep hook`），没有就升级后手动 `sbctl sign -s`。
 - 换引导器、更新 `grubx64.efi`/`systemd-bootx64.efi` 同理，二进制一变就得重签。
 
@@ -78,7 +89,7 @@ mokutil --list-new         # 看待注册的密钥
 - 「关闭 SB 就不安全了」：对学习机而言，关闭换来的是可控性；真正要防护的机器应走签名路线。
 - 「签了内核就够了」：引导器先于内核执行，它不签照样被固件拦下。
 - 「签名一次终身有效」：任何被签文件的字节变了，签名就失效——升级、换引导器、改 UKI 都算。
-- 「Setup Mode 就是关闭 SB」：Setup Mode 只是允许写入密钥的状态，两者是不同开关。
+- 「Setup Mode 就是关闭 SB」：Setup Mode 是 `PK` 未注册/已清除、允许写入密钥的状态，与 Secure Boot 开关是两回事。
 
 ## 回退与救援
 
@@ -86,7 +97,7 @@ mokutil --list-new         # 看待注册的密钥
 | ------------------------- | ------------------------- | -------------------------------------------------- |
 | 固件报 Security Violation | 文件未签或签名失效        | 关闭 SB 进入系统后重签                             |
 | 升级后起不来              | 新内核未重签              | Live ISO 挂载根 + `arch-chroot` 后 `sbctl sign -s` |
-| MOK 注册不生效            | Setup Mode/注册流程没走完 | `mokutil --list-enrolled` 核对；必要时先关闭 SB    |
+| MOK 注册不生效            | MOK 未确认或密钥未登记    | `mokutil --list-new` 看待注册项，重启进 MokManager 完成 Enroll；`mokutil --list-enrolled` 核对结果。MOK 与 Setup Mode 无关 |
 | 放弃签名路线              | —                         | 固件关闭 SB，密钥清理以 Wiki 为准                  |
 
 保留 fallback 启动项（第 41 章）与一份可启动的 Live ISO，是所有引导层改动的通用安全网；动手前先确认 `/etc/mkinitcpio.d/linux.preset` 已启用 fallback 且 `/boot` 里有对应的 fallback **镜像**（默认并不生成）。

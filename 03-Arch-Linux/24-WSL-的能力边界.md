@@ -34,21 +34,36 @@ mount | grep -i 'drvfs\|9p'
 | pacman / AUR / makepkg | 完整     | 完整   | 完整 | 与发行版无关                      |
 | systemd 服务与日志     | 基本完整 | 完整   | 完整 | 需要先启用 systemd                |
 | 用户、权限、文件层次   | 完整     | 完整   | 完整 | 在 Linux 文件系统内有效           |
-| 内核编译与模块         | 不可     | 可以   | 可以 | 内核由微软提供                    |
-| 引导器 / initramfs     | 不可     | 可以   | 可以 | WSL 不经过引导器                  |
-| 分区 / LUKS / 文件系统 | 不可     | 可以   | 可以 | 根文件系统位于虚拟磁盘镜像        |
+| 内核编译与模块         | 默认不可（可配自定义内核） | 可以 | 可以 | 内核由微软提供；`.wslconfig` 的 `kernel=`/`kernelModules=` 可替换，但模块须匹配该内核 |
+| 引导器 / initramfs     | 引导器不可；initramfs 由微软提供 | 可以 | 可以 | 无 GRUB/ESP；微软 `mini_init` 代替常规 Arch initramfs |
+| 分区 / LUKS / 文件系统 | 默认不可；`wsl --mount` 可挂载物理盘 | 可以 | 可以 | 根文件系统在 vhdx；物理盘需显式 `--mount`，LUKS 支持有限，需自行验证 |
 | 设备、udev、显卡驱动   | 受限     | 部分   | 完整 | 硬件不直通                        |
-| 桌面环境               | 不适用   | 可以   | 可以 | WSLg 是另一套机制，不是完整桌面栈 |
+| 桌面环境               | 默认无完整桌面；WSLg 可跑 GUI 应用 | 可以 | 可以 | WSLg 只做 Wayland/X 转发，不是完整桌面会话 |
 
 判断方法：一项任务如果依赖「启动过程、块设备、内核模块、真实硬件」，在 WSL 里大概率学不到；如果只依赖用户空间工具和配置文件，通常可以。
 
+默认不可的能力大多可显式启用，但都有前提（以 `wsl --help` 与官方文档为准）：
+
+```ini
+# %UserProfile%\.wslconfig（Windows 侧，改后 wsl --shutdown 生效）
+[wsl2]
+kernel = C:\\Users\\<你>\\wsl-kernels\\bzImage
+kernelModules = C:\\Users\\<你>\\wsl-kernels\\modules
+```
+
+```powershell
+wsl --mount --bare \\.\PHYSICALDRIVE2   # 挂物理盘：需管理员，先用 Windows 磁盘管理确认盘号
+```
+
+WSLg：Windows 11（及较新的 Windows 10）自带，Linux 内可直接运行 GUI 程序（如 `xeyes`）；它只转发 Wayland/X，不是完整桌面会话。
+
 ## systemd 在 WSL 中的支持与限制
 
-WSL 2 支持把 systemd 作为 PID 1，通过 `/etc/wsl.conf` 启用。判据不要用"较新"这种说法：`wsl --version` 确认为 WSL 2（Store 版），并能在启用后让 `systemctl is-system-running` 正常返回，才算支持；不支持时先 `wsl --update`。启用后：
+WSL 2 支持把 systemd 作为 PID 1，通过 `/etc/wsl.conf` 启用。`wsl -l -v` 确认实例版本号为 2；启用后 `systemctl is-system-running` 能正常返回，才算支持。不支持时先 `wsl --update`；`wsl --version` 用来看 Store 版号，不用于判断实例版本或磁盘位置。启用后：
 
 - `systemctl`、`journalctl`、unit 文件、timer 的行为与普通 Arch 基本一致。
 - 适合练习 service、timer、日志查询和依赖关系。
-- 但启动相关的内容仍然不同：没有引导器、没有 initramfs、内核不是 Arch 的。
+- 但启动相关的内容仍然不同：没有 GRUB/ESP，微软提供固定的 `mini_init` 作为 initramfs，内核也不是 Arch 的。
 
 ```bash
 # 确认 PID 1
@@ -70,8 +85,8 @@ systemctl is-system-running
 | 时钟                        | 与 Windows 共享时钟，休眠后可能漂移 | 影响签名验证与日志时间  |
 | Windows PATH                | 默认追加到 Linux PATH               | 可能误调用 Windows 程序 |
 | 跨文件系统权限              | `/mnt/c` 下权限语义不同             | 权限报错、性能下降      |
-| 无引导器                    | 启动不经过 GRUB/systemd-boot        | 学不到引导流程          |
-| 内核不可替换                | 不能通过 pacman 换内核              | 内核、模块实验受限      |
+| 无引导器                    | 启动不经过 GRUB/systemd-boot，微软 `mini_init` 固定 | 学不到引导流程          |
+| 内核默认不可替换            | 不能通过 pacman 换内核；可配 `.wslconfig` 自定义内核 | 内核、模块实验受限（自定义内核可部分缓解） |
 
 ```bash
 # 看 PATH 是否被 Windows 目录污染
