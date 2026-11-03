@@ -24,20 +24,29 @@ sudo resize2fs /dev/vg0/data              # ext4 随之扩大
 
 ## 旧签名与分区表：wipefs、partprobe
 
-同一块盘装过别的系统时，旧文件系统签名会留在分区头，`mkfs` 可能认错类型或报警。清理工具链：
+同一块盘装过别的系统时，旧文件系统签名会留在分区头，`mkfs` 可能认错类型或报警。先分清两种目标：**整盘重做分区**（会一并清掉分区表）与**只清某个分区的旧签名**（保留分区布局）。
 
 ```bash
-# 环境：VM
-sudo wipefs /dev/vdb           # 先看有什么签名（只读）
-sudo wipefs -a /dev/vdb        # 再清掉全部签名
-sudo partprobe /dev/vdb        # 让内核重读分区表
-sudo udevadm settle            # 等设备节点稳定
-lsblk -f /dev/vdb              # 预期 FSTYPE 列为空
+# 环境：VM，假设 /dev/vdb 是整块空盘或确认可丢弃的盘
+lsblk -f /dev/vdb                        # 先看清盘上有没有分区、各分区 FSTYPE
+sudo sfdisk -d /dev/vdb > vdb.layout     # 备份分区表布局（重建依据）
+sudo wipefs /dev/vdb                     # 只读：列出整盘上的签名
+sudo wipefs -a /dev/vdb                  # 清整盘签名（含分区表），分区节点会消失
+sudo partprobe /dev/vdb                  # 让内核重读分区表
+sudo udevadm settle                      # 等设备节点稳定
+lsblk -f /dev/vdb                        # 预期不再显示分区及其 FSTYPE，但不代表数据被擦除
 ```
 
-`wipefs -a` 只清签名不擦数据区（数据仍可被工具找回，但系统不再识别）；分区表改动后必须 `partprobe` + `udevadm settle`，否则 `mkfs` 可能写到旧的设备映射上。
+只想清某个分区里的旧文件系统签名、保留分区布局时，把对象换成分区设备：
 
-> **危险**：`wipefs -a` 与 `mkfs` 同级危险，永远先跑不带 `-a` 的 `wipefs` 看清楚签名列表，确认设备无误再动手。
+```bash
+sudo wipefs /dev/vdb1                    # 只读确认该分区签名
+sudo wipefs -a /dev/vdb1                 # 只清该分区签名，分区表不变
+```
+
+`wipefs -a` 只清签名不擦数据区（数据仍可被工具找回，但系统不再识别）。对**整盘**执行时，分区表签名一并被清：分区节点从 `lsblk` 消失、`lsblk -f` 往往显示空盘，但分区内的数据仍在，只是不可达；需按 `vdb.layout` 的原始几何重建分区后才可能重新识别。分区表改动后必须 `partprobe` + `udevadm settle`，否则 `mkfs` 可能写到旧的设备映射上。
+
+> **危险**：`wipefs -a` 与 `mkfs` 同级危险，永远先跑不带 `-a` 的 `wipefs` 看清楚签名列表，确认设备无误再动手。整盘 `-a` 会清掉分区表：没有布局备份就只能凭记忆重建，数据虽然还在但难以定位；只在一次性 VM 或确认可丢弃的盘上演练。
 
 ## fstab 的校验与恢复闭环
 
@@ -69,7 +78,7 @@ sudo umount /mnt
 sudo mount -o subvol=@,compress=zstd /dev/vdb1 /mnt   # 挂指定子卷
 ```
 
-三个关键概念：`subvol=` 挂载选项决定用哪个子卷；`compress=zstd` 透明压缩（CPU 换空间）；**NoCOW**（`chattr +C`）关掉写时复制——数据库、虚拟机镜像、swapfile 这类自己管理并发写的文件必须关，否则随机小写会放大成碎片。`chattr +C` 只能对空文件/空目录生效；NoCOW 同时关闭数据校验和与压缩，是安全换性能的取舍。
+三个关键概念：`subvol=` 挂载选项决定用哪个子卷；`compress=zstd` 透明压缩（CPU 换空间）；**NoCOW**（`chattr +C`）关掉写时复制。swapfile 是硬性要求——btrfs 上的 swapfile 必须 NoCOW（且不能压缩、必须预分配），否则 `swapon` 会拒绝；数据库、虚拟机镜像属于性能建议：它们自己管理并发写，关掉 COW 可减少随机小写放大与碎片，代价是失去数据校验和与压缩。`chattr +C` 只能对空文件/空目录生效。
 
 ## btrfs 上的 swapfile
 
