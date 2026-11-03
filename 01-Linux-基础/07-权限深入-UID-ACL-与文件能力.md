@@ -44,7 +44,7 @@ getcap /usr/local/bin/myserver
 sudo setcap -r /usr/local/bin/myserver   # 清除
 ```
 
-`cap_net_bind_service=+ep` 的 `e/p` 是 effective/permitted 两集的开关。相比 SUID root：给一个专用二进制（不是脚本）设 `cap_dac_override`，它只能绕权限检查，给不了关机、改内核参数的能力，爆炸半径小得多。排查特权入口的两个口子：`find /usr/bin -perm -4000` 列 SUID 文件，`getcap -r /usr` 列能力文件——审计系统改动都该扫这两处。
+`cap_net_bind_service=+ep` 的 `e/p` 是 effective/permitted 两集的开关。相比 SUID root：给一个专用二进制（不是脚本）设 `cap_dac_override` 要格外谨慎——它可绕过全部 DAC 读/写/执行检查，在文件非 immutable、所在挂载点非只读、且没有 SELinux/AppArmor 等强制访问控制拦截时，可改写 `/etc/shadow`、`/etc/sudoers` 等 root 文件，等价 root 权限；只能授予 root 属主、普通用户不可改写、经过审计的二进制。想演示低风险能力，用 `cap_net_bind_service`（仅允许绑定 1024 以下端口）。排查特权入口的两个口子：`find / -xdev -type f -perm -4000` 列全盘 SUID 文件，`getcap -r / 2>/dev/null` 列全盘能力文件——审计系统改动都该扫这两处。全盘扫描较慢，`-xdev` 已避免跨挂载点，也可按目录分批。
 
 ## ACL：按名字授权的完整图景
 
@@ -97,7 +97,7 @@ sudo chattr -i attr.txt                         # 解除后可继续写
 
 - 三 UID：real 管「你是谁」，effective 管「你现在能干什么」，saved 管「回得去」；SUID 只借 effective/saved，`sudo` 则把四个 UID 全部换成目标用户。
 - 解释型脚本的 SUID/SGID 被内核忽略；`nosuid` 挂载连二进制的 SUID 与 capabilities 一起关掉。
-- file capabilities 把 root 拆成单点能力，`getcap/setcap` 管理，审计入口是 `getcap -r /usr`。
+- file capabilities 把 root 拆成单点能力，`getcap/setcap` 管理，审计入口是全盘 `getcap -r / 2>/dev/null`。
 - ACL 按名授权：mask 是上限，默认 ACL 让子条目继承（此时 umask 不参与），`-k`/`-b`/`-R` 管清理与递归。
 - 排查顺序：挂载选项 → DAC/ACL → 有效身份与能力 → 强制机制。
 
@@ -106,7 +106,7 @@ sudo chattr -i attr.txt                         # 解除后可继续写
 1. 用 `grep '^Uid' /proc/self/status` 记录自己的 UID 三元组，再跑一次 `sudo grep '^Uid' /proc/self/status`，解释两行差异（环境：WSL；预期：第二组变成 `0 0 0 0`，而 `passwd` 执行时 real 仍是 1000）。
 2. 按上文造 `/tmp/suid.sh` 验证脚本 SUID 无效，再做一个真正的二进制副本对比：`sudo cp /usr/bin/id /tmp/lab7/idcopy && sudo chown root:root /tmp/lab7/idcopy && sudo chmod 4755 /tmp/lab7/idcopy`，随后 `/tmp/lab7/idcopy -u`；先 `findmnt /tmp` 确认未挂 `nosuid`（环境：WSL；预期：脚本输出自身 UID，二进制输出 0）。
 3. ACL 全流程：授权 → 看 mask 与 `#effective:` → 建默认 ACL → 验证继承 → `setfacl -k` 与 `-b` 清理（环境：WSL；预期：`+` 标志随 `-b` 消失，`-k` 后新建文件不再继承）。
-4. `getcap -r /usr 2>/dev/null | head` 列出系统上带能力的文件，任选两个查它的包归属（环境：WSL；预期：能说出每个文件的能力含义）。
+4. `getcap -r /usr 2>/dev/null | head` 演示列出带能力的文件（只看 /usr 是为了快；全盘审计用 `getcap -r / 2>/dev/null`），任选两个查它的包归属（环境：WSL；预期：能说出每个文件的能力含义）。
 5. 阅读题：解释「给脚本加 SUID root」为什么在 Linux 上不成立，并说出两条正确替代；再解释为什么「给 `bash` 设 file capabilities」同样是危险做法（环境：阅读题）。
 
 ## 自检

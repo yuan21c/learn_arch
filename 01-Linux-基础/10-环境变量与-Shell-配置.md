@@ -34,17 +34,16 @@ bash -c 'echo "child after unset: [$MYVAR]"'    # child after unset: []
 
 ## PATH：命令查找的全部真相
 
-第 2 章说过 shell 到 `PATH` 列出的目录里找程序；现在把这句话拆到底。`PATH` 是**冒号分隔的目录列表**，查找按书写顺序进行，命中即止。`type -a` 会按 PATH 顺序列出一个名字的全部匹配（环境：WSL，实跑）：
+第 2 章说过 shell 到 `PATH` 列出的目录里找程序；现在把这句话拆到底。`PATH` 是**冒号分隔的目录列表**，查找按书写顺序进行，命中即止。Arch 的默认 `PATH` 是 `/usr/local/sbin:/usr/local/bin:/usr/bin`（以 `echo $PATH` 为准），`type -a` 按 PATH 顺序列出同名命令的全部匹配。只在 `/usr/bin` 有一份时输出只有一行；当 `/usr/local/bin` 放了同名包装脚本，才会看到多行、且前者优先（环境：WSL，实跑）：
 
 ```text
+$ echo $PATH
+/usr/local/sbin:/usr/local/bin:/usr/bin
 $ type -a ls
-ls is /usr/sbin/ls
 ls is /usr/bin/ls
-ls is /sbin/ls
-ls is /bin/ls
 ```
 
-四个路径其实指向同一个程序（`/usr/sbin`、`/sbin` 在 Arch 上是链接），但顺序暴露了 PATH 的排列。三个配套工具：`command -v 名字` 输出**第一个**匹配（脚本里判断「程序存在吗」用它）；`type` 区分别名/函数/内置/外部程序；`hash` 是 bash 的查找缓存——它记住上次执行的位置（`hash -r` 清缓存、无输出，再运行 `hash` 才显示 `hash table empty`），程序路径变动后用 `hash -r` 清缓存。
+匹配顺序就是 PATH 顺序：排在前面的目录先命中；`/usr/local/bin` 常用来放覆盖系统命令的本地版本。三个配套工具：`command -v 名字` 输出**第一个**匹配（脚本里判断「程序存在吗」用它）；`type` 区分别名/函数/内置/外部程序；`hash` 是 bash 的查找缓存——它记住上次执行的位置（`hash -r` 清缓存、无输出，再运行 `hash` 才显示 `hash table empty`），程序路径变动后用 `hash -r` 清缓存。
 
 PATH 的四个事故多发点：
 
@@ -68,9 +67,9 @@ PATH 的四个事故多发点：
 
 ## shell 启动文件：登录与非登录
 
-shell 启动时读哪些文件，取决于两个正交的维度：**登录 shell**（`bash --login`、开机登录、图形终端打开 login shell）与**交互 shell**（你在敲命令的终端）。bash 的完整顺序，全部在本机实测过（环境：WSL）：
+shell 启动时读哪些文件，取决于两个正交的维度：**登录 shell**（`bash --login`、开机文本登录、显式配置为 login 的终端）与**交互 shell**（你在敲命令的终端；图形终端默认多为交互非登录）。bash 的完整顺序，全部在本机实测过（环境：WSL）：
 
-- **登录 shell**：先读 `/etc/profile`（系统级，里面会向 PATH 追加 `/usr/local/sbin` 等目录并加载 `/etc/profile.d/*.sh`），再按顺序读**第一个存在**的 `~/.bash_profile`、`~/.bash_login`、`~/.profile`。Arch 的 skel 模板让 `~/.bash_profile` 的有效内容只有一行 `[[ -f ~/.bashrc ]] && . ~/.bashrc`——所以登录与非登录最终汇合到 `~/.bashrc`。
+- **登录 shell**（`bash --login`、开机文本登录、显式配置为 login 的终端；图形终端默认多为交互非登录）：先读 `/etc/profile`（系统级，里面会向 PATH 追加 `/usr/local/sbin` 等目录并加载 `/etc/profile.d/*.sh`），再按顺序读**第一个存在**的 `~/.bash_profile`、`~/.bash_login`、`~/.profile`。Arch 的 skel 模板让 `~/.bash_profile` 的有效内容只有一行 `[[ -f ~/.bashrc ]] && . ~/.bashrc`——所以登录与非登录最终汇合到 `~/.bashrc`。
 - **交互非登录 shell**：先读 `/etc/bash.bashrc`，再读 `~/.bashrc`。实测对照（`HOME` 指向空目录，隔离个人配置）：
 
 ```text
@@ -82,7 +81,7 @@ $ env -i HOME=/tmp/lab10 bash -i -c 'echo [$PS1]'
 
 - **非交互 shell**（脚本）：默认不读以上任何文件，需要时用 `BASH_ENV` 变量指定一个要先执行的文件（细节以 [Bash](https://wiki.archlinux.org/title/Bash) 为准）。
 
-改了配置怎么生效？两条路：`source 文件`（或等价的 POSIX 写法 `. 文件`）在**当前 shell** 立即执行它（bash 帮助原话 "Execute commands from a file in the current shell"），或开一个新 shell 让启动流程重走一遍。启动文件速查：**交互+登录**读 `/etc/profile` → `~/.bash_profile`→`~/.bash_login`→`~/.profile`（首个存在者）→ `~/.bashrc`；**交互+非登录**先读 `/etc/bash.bashrc`，再读 `~/.bashrc`；**非交互**（脚本）读 `BASH_ENV` 指向的文件，通常没有。`sudo -i`、`su -` 会以目标用户身份**重置整个环境**重走登录流程；`su 用户`（不带 `-`）基本保留当前变量，`sudo 命令` 默认 `env_reset`、只保留 `env_keep` 白名单。系统级入口还有三个：`/etc/environment`（`pam_env` 读取）、`/etc/security/pam_env.conf`、`~/.config/environment.d/*.conf`（systemd 用户会话）。惯例分工：别名、提示符、`PATH` 追加写 `~/.bashrc`；只想要登录时执行一次的放 `~/.bash_profile`。zsh、fish 各有自己的一套启动文件（如 zsh 的 `~/.zshrc`），以对应 Wiki 为准。
+改了配置怎么生效？两条路：`source 文件`（或等价的 POSIX 写法 `. 文件`）在**当前 shell** 立即执行它（bash 帮助原话 "Execute commands from a file in the current shell"），或开一个新 shell 让启动流程重走一遍。启动文件速查：**交互+登录**读 `/etc/profile` → `~/.bash_profile`→`~/.bash_login`→`~/.profile`（首个存在者）→ `~/.bashrc`；**交互+非登录**先读 `/etc/bash.bashrc`，再读 `~/.bashrc`；**非交互**（脚本）读 `BASH_ENV` 指向的文件，通常没有。`sudo -i`、`su -` 会以目标用户身份**重置整个环境**重走登录流程；`su 用户`（不带 `-`）只把 `HOME`/`SHELL` 切到目标用户（非 root 目标还改 `USER`/`LOGNAME`），其余大多保留；`su -m` 才完整保留环境。`sudo 命令` 默认 `env_reset`、只保留 `env_keep` 白名单。系统级入口还有两个：`/etc/environment`（`pam_env` 读取）、`/etc/security/pam_env.conf`；用户级另有 `~/.config/environment.d/*.conf`（systemd 用户服务读取，不是系统级）。惯例分工：别名、提示符、`PATH` 追加写 `~/.bashrc`；只想要登录时执行一次的放 `~/.bash_profile`。zsh、fish 各有自己的一套启动文件（如 zsh 的 `~/.zshrc`），以对应 Wiki 为准。
 
 ## alias 与提示符
 
@@ -92,6 +91,8 @@ alias 是交互利器：`alias ll='ls -l'` 定义，`alias` 列出全部，`unal
 # 脚本 t2.sh：alias hi='echo hello'; hi      → hi: command not found（退出码 127）
 # 脚本 t1.sh：开头加 shopt -s expand_aliases  → 正常输出 hello（实测）
 ```
+
+同一行写 `alias hi='echo hello'; hi` 仍会失败：整行在执行前已解析完，定义生效时命令名早已解析。定义必须单独一行、先于使用，例如 `shopt -s expand_aliases`、`alias hi='echo hello'`、`hi` 三行。
 
 交互 shell 默认开启 alias 展开，脚本（非交互）默认关闭：写进脚本要在使用之前加 `shopt -s expand_aliases`。另一条实用结论：名字的解析顺序是 **alias → 函数 → 内置命令 → PATH 文件**，`type cd` 实测输出 `cd is a shell builtin`、`type -a ls` 会先列 alias 再列 PATH 文件（只想看 PATH 用 `type -P ls` 或 `which ls`——别名存在时 `command -v` 会输出 alias），各自印证了所处的层级——这也是第 2 章 `cd` 不需要路径的原因。
 

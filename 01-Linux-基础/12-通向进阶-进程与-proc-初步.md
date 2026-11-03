@@ -68,7 +68,7 @@ Uid:    1000    1000    1000    1000
 $ cat /proc/uptime
 77496.91 450232.09             # 开机秒数；空闲秒数（跨 CPU 累计，可大于前者）
 $ cat /proc/loadavg
-0.27 0.41 0.36 2/1060 242713   # 1/5/15 分钟负载；运行中/总线程数；最近新建的 PID
+0.27 0.41 0.36 2/1060 242713   # 1/5/15 分钟平均负载；可运行(running+runnable)/总调度实体数；最近新建的 PID
 $ grep -c ^processor /proc/cpuinfo
 6                              # 逻辑 CPU 个数
 $ head -3 /proc/meminfo
@@ -93,7 +93,7 @@ MemAvailable:    8304120 kB
 ## 小结
 
 - 程序是静态文件，进程是带 PID 的运行实例；PPID 串成进程树（`/proc` 里的字段名写作 `PPid`），PID 1 是树根（本机 systemd），`/proc/PID` 目录随进程生灭。
-- 系统调用是用户态进入内核态的唯一受控入口；libc 包装它，man 第 2 节记录它，`strace` 观察它；builtin 与外部程序的差别也由此解释。
+- 系统调用是用户态进入内核态的**主要受控入口**（此外还有中断、异常与 vDSO 等路径）；libc 包装它，man 第 2 节记录它，`strace` 观察它；builtin 与外部程序的差别也由此解释。
 - `/proc/self` 谁读代表谁；`comm/cmdline/status/cwd/exe` 是单进程档案，`uptime/loadavg/cpuinfo/meminfo` 是整机仪表。
 - 篇一至此收官：命令（2）、文件（3）、文本（4）、文件系统（5）、权限（6-7）、用户与 sudo（8-9）、环境（10）、综合实验（11）全部就位——第 13 章从 `ps`/`top` 与信号开始，把「进程」从概念变成日常操作。
 

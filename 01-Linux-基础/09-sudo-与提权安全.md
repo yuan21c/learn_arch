@@ -54,6 +54,8 @@ Cmnd_Alias DB_DUMP  = /usr/bin/mariadb-dump, /usr/bin/pg_dump
 %deploy ALL=(root) NOPASSWD: SERVICES
 ```
 
+`secure_path` 只是示例（此值接近 Arch/本机配置），不同发行版与自定义 `sudoers` 会不同；用 `sudo -l` 查看实际生效的默认值，不要把它当作所有 Linux 的通用默认。
+
 `secure_path` 解释了「sudo 里找不到刚装的命令」：sudo 按固定 PATH 找命令，你 shell 里的 `~/.local/bin` 不在其中——把工具装进 `/usr/local/bin`，不要让 root 去执行用户可写的目录里的程序。`User_Alias`/`Host_Alias` 同理，把多用户、多机器的授权写成一行。
 
 ## 日常动词：-u、-i、-l、-k、-v、-e
@@ -89,7 +91,7 @@ journalctl _COMM=sudo -o cat | tail
 
 ## 小结
 
-- sudoers 行 = 谁 在哪 =（以谁）标签: 命令；默认只启用需密码的 `%wheel`，Ubuntu/Debian 用 `%sudo`。
+- sudoers 行 = 谁 在哪 =（以谁）标签: 命令；Arch 出厂两行 `%wheel` 均被注释、须显式启用，通常先启用需密码的 `%wheel ALL=(ALL:ALL) ALL`；Ubuntu/Debian 默认启用 `%sudo`。
 - 自定义授权进 `/etc/sudoers.d/`：root 属主、0440、文件名不带 `.`，`visudo -c` + `sudo -l` 双验证。
 - `Defaults` 管缓存与 PATH（`secure_path`），`Cmnd_Alias` 把命令打包成最小授权。
 - `NOPASSWD: ALL` 是提权安全的反面教材；免密只配窄命令。
