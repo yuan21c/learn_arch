@@ -59,7 +59,7 @@ EndSection
 ```
 
 - 匹配条件：`MatchIsTouchpad`、`MatchIsKeyboard`、`MatchProduct`、`MatchVendor`、`MatchDevicePath`；条件越多越精确。
-- **顺序很关键**：`InputClass` 先匹配先生效，后面的同类片段不会覆盖已应用的驱动；要把自己的片段放在默认片段之后（文件名更大）才能覆盖选项。
+- **顺序很关键，但要分清修饰对象**：多个 `InputClass` 可同时匹配。**`Option` 由后匹配的片段覆盖先匹配的**，所以通用规则放前、你的专用规则放后（文件名前缀更大）；而 **`Driver` 只取第一个匹配片段里出现的那个**，不要在多个片段里重复写 `Driver`——先匹配的那个生效，后写的被忽略。
 - 三种输入驱动的边界：`libinput` 是现代默认，X11 与 Wayland 都用它；`synaptics` 是旧驱动，只在需要它的专属选项（如复杂的边缘滚动）时用，**Wayland 下完全不生效**；`wacom` 用于数位板，需要 `xf86-input-wacom` 并按设备单独配置。
 
 临时调参不必改文件（重启即失效）：
@@ -103,7 +103,7 @@ setxkbmap -query
 
 多布局用逗号分隔，`grp:` 选项定义切换键。**`localectl` 改的是系统默认，`setxkbmap` 改的是当前会话**；两者冲突时以最后生效的为准，排障先 `setxkbmap -query` 看实际值。
 
-没有图形会话也能校验布局是否合法（本机实测通过）：
+没有图形会话也能校验布局是否合法（本书验证环境实测通过）：
 
 ```bash
 xkbcli compile-keymap --layout us,cn > /tmp/keymap.xkb
@@ -216,7 +216,7 @@ sudo systemctl restart <显示管理器> # 或重新 startx
 
 - 配置顺序：`/usr/share` 默认 → `/etc` 覆盖（按文件名字典序）→ `xorg.conf` → 命令行临时配置。
 - 大多数机器不需要配置文件；只在自动配置猜错时用最小片段修正。
-- `InputClass` 先匹配先生效，文件名前缀决定覆盖顺序；`libinput` 是现代默认。
+- `InputClass` 的 `Option` 后匹配覆盖先匹配（通用在前、专用在后），`Driver` 取第一个匹配片段；`libinput` 是现代默认。
 - 键盘布局用 `localectl` 持久化，`setxkbmap` 只影响当前会话，`xkbcli compile-keymap` 可离线校验。
 - `xrandr` 是 X11 的临时多屏工具，持久化要靠会话脚本或桌面设置；Wayland 不适用。
 - `Xft.dpi` 只影响部分工具包，混合 DPI 多屏是 X11 的固有短板。

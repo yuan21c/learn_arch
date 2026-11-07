@@ -84,8 +84,11 @@ libvirt 的默认网络是 NAT；`virsh net-list --all` 若显示 `default` 未�
 
 ```bash
 sudo pacman -S edk2-ovmf
-ls /usr/share/edk2/x64/OVMF_CODE.fd /usr/share/edk2/x64/OVMF_VARS.fd
+ls /usr/share/edk2/x64/ # 先看包里实际有哪些：202608 版是 OVMF.4m.fd、OVMF_CODE.4m.fd、OVMF_CODE.secboot.4m.fd、OVMF_VARS.4m.fd
+ls /usr/share/edk2/x64/OVMF_CODE.4m.fd /usr/share/edk2/x64/OVMF_VARS.4m.fd
 ```
+
+旧教程里的 `OVMF_CODE.fd`/`OVMF_VARS.fd`（没有 `.4m` 后缀）在当前包里**不存在**，照着抄会得到「文件找不到」。新版把 4 MB 对齐的变体加了 `.4m` 后缀：普通 UEFI 用 `OVMF_CODE.4m.fd` + `OVMF_VARS.4m.fd`，需要 Secure Boot 链时用 `OVMF_CODE.secboot.4m.fd` 配同一份 `VARS`。路径以 `ls` 的实际输出为准，升级后文件名可能再变。
 
 变量文件要复制一份给每个域用，不能多个域共享同一份 `VARS`，否则 NVRAM 互相覆盖。Secure Boot 的密钥与签名链已在第 61 章讲过，这里不重复。
 

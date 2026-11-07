@@ -37,7 +37,7 @@
 
 ### 1. 建 CA、签用户证书
 
-以下命令已在本机实测，全部在 `/tmp` 下完成，不碰系统密钥：
+以下命令已在本书验证环境中实测，全部在 `/tmp` 下完成，不碰系统密钥：
 
 ```bash
 mkdir -p /tmp/lab26 && cd /tmp/lab26
@@ -62,7 +62,7 @@ TrustedUserCAKeys /etc/ssh/ca.pub
 **可复现的端到端实验**：在 127.0.0.1 的 2200 端口起一个临时 sshd，不碰系统 sshd：
 
 ```bash
-# 需在虚拟机中完成；把 y2c 换成你的用户名
+# 把 y2c 换成你的用户名
 ssh-keygen -q -s ca -I test -n y2c -V +1h user.pub # 用你的用户名作为 principal
 cat > sshd.conf <<'EOF'
 Port 2200
@@ -192,9 +192,9 @@ ssh-keygen -lf ~/.ssh/id_ed25519.pub # 指纹
 
 1. 证书检查（`/tmp` 演练）：建 CA 与用户密钥，签发一张带两个 principal、有效期 1 小时的证书，用 `ssh-keygen -L` 读出 Type、Principals、Valid、Extensions 五项（预期：能看到 `permit-agent-forwarding` 等默认扩展）。
 2. 收紧证书（`/tmp` 演练）：重新签发一张证书，用 `-O no-port-forwarding -O no-agent-forwarding` 关闭两项扩展，再用 `ssh-keygen -L` 对比差异；说明为什么「默认全开」是一个需要主动处理的边界。
-3. 端到端登录（需在虚拟机中完成）：按正文在 2200 端口起临时 sshd，用证书登录成功；再把 `TrustedUserCAKeys` 注释掉重载，确认同一把证书被拒（预期：第一次输出 `CERT_LOGIN_OK`，第二次 `Permission denied`）。
+3. 端到端登录（按正文在本机临时起 sshd）：按正文在 2200 端口起临时 sshd，用证书登录成功；再把 `TrustedUserCAKeys` 注释掉重载，确认同一把证书被拒（预期：第一次输出 `CERT_LOGIN_OK`，第二次 `Permission denied`）。
 4. 配置解析：写一个含 `Host prod` 与 `Host *` 的配置文件，用 `ssh -G -F <文件> prod` 看 hostname/user/port/identityfile 的最终值；再在命令行加 `-p 2222`，确认命令行覆盖配置文件。
-5. Match 验证（需在虚拟机中完成）：写两个 Match 块（按 User 与按 Address），用 `sshd -T -C user=...,host=...,addr=...` 分别模拟命中的场景，记录最终生效的 `passwordauthentication` 与 `allowtcpforwarding`。
+5. Match 验证（按正文在本机临时起 sshd）：写两个 Match 块（按 User 与按 Address），用 `sshd -T -C user=...,host=...,addr=...` 分别模拟命中的场景，记录最终生效的 `passwordauthentication` 与 `allowtcpforwarding`。
 6. 风险分析题：解释「`ssh -A` 到一台不可信机器」与「`ProxyJump` 到同一台机器」在私钥暴露上的差别；再给出两条不用 agent 转发也能访问内网的办法。
 
 ## 自检

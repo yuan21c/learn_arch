@@ -26,12 +26,15 @@ RAID 不是备份：它防硬件故障，不防误删、不防文件系统损坏
 `mdadm` 管理 Linux 的软 RAID（内核 `md` 驱动）。学习阶段不需要真盘：用几个文件当块设备（loop device），创建、降级、重建、删除都能反复做，且**删除文件即彻底回滚**。
 
 ```bash
-# 需在虚拟机中完成（要装 mdadm，且内核有 md 模块）；实机也能做，但不要碰真盘
+# 要装 mdadm，且内核有 md 模块；实机也能做，但不要碰真盘
 mkdir -p /tmp/lab21 && cd /tmp/lab21
 for i in 1 2; do dd if=/dev/zero of=disk$i.img bs=1M count=64 status=none; done
-sudo losetup /dev/loop1 disk1.img && sudo losetup /dev/loop2 disk2.img
-lsblk /dev/loop1 /dev/loop2 # 确认两个 loop 设备就位、无分区
-sudo mdadm --create /dev/md0 --level=1 --raid-devices=2 --metadata=1.2 /dev/loop1 /dev/loop2
+# 用 -f --show 自动取空闲的 loop 编号；固定写 /dev/loop1 在编号被占用时会直接失败
+LOOP1=$(sudo losetup -f --show disk1.img) # 若报 no free loop device，先 sudo modprobe loop
+LOOP2=$(sudo losetup -f --show disk2.img)
+echo "$LOOP1 $LOOP2" # 示例输出：/dev/loop1 /dev/loop2；实际编号随机器不同
+lsblk "$LOOP1" "$LOOP2" # 确认两个 loop 设备就位、无分区
+sudo mdadm --create /dev/md0 --level=1 --raid-devices=2 --metadata=1.2 "$LOOP1" "$LOOP2"
 cat /proc/mdstat # 预期：md0 : active raid1 loop2[1] loop1[0]，两盘均为 U
 sudo mkfs.ext4 /dev/md0 && sudo mkdir -p /mnt/raid1 && sudo mount /dev/md0 /mnt/raid1
 ```
@@ -43,11 +46,11 @@ sudo mkfs.ext4 /dev/md0 && sudo mkdir -p /mnt/raid1 && sudo mount /dev/md0 /mnt/
 真正要练的不是创建，而是**坏一块之后系统还能不能用、换盘能不能恢复**。以下操作在 loop 阵列上完成，生产环境的命令相同，只是设备名换成真实盘：
 
 ```bash
-sudo mdadm --fail /dev/md0 /dev/loop1 # 标记 loop1 失效（模拟拔盘）
-cat /proc/mdstat # 预期：[2/1] [U_]，只剩 loop2 在服务，阵列仍可读写
+sudo mdadm --fail /dev/md0 "$LOOP1" # 标记第一块失效（模拟拔盘）
+cat /proc/mdstat # 预期：[2/1] [U_]，只剩 $LOOP2 在服务，阵列仍可读写
 sudo mount | grep md0 # 确认仍挂载，写一个文件验证可用
-sudo mdadm --remove /dev/md0 /dev/loop1 # 从阵列移除失效盘
-sudo mdadm --add /dev/md0 /dev/loop1 # 把「新盘」加回（真实场景是换上的新盘）
+sudo mdadm --remove /dev/md0 "$LOOP1" # 从阵列移除失效盘
+sudo mdadm --add /dev/md0 "$LOOP1" # 把「新盘」加回（真实场景是换上的新盘）
 cat /proc/mdstat # 预期：出现 recovery/resync 进度，完成后恢复 [2/2] [UU]
 ```
 
@@ -57,7 +60,7 @@ cat /proc/mdstat # 预期：出现 recovery/resync 进度，完成后恢复 [2/2
 # 清理实验环境（顺序：先卸载、停阵列、拆 loop、删文件）
 sudo umount /mnt/raid1
 sudo mdadm --stop /dev/md0
-sudo losetup -d /dev/loop1 /dev/loop2
+sudo losetup -d "$LOOP1" "$LOOP2" # 变量沿用上面的赋值；新开的 shell 先用 losetup -a 查回设备名
 rm -rf /tmp/lab21
 ```
 
@@ -124,7 +127,7 @@ RAID 是最基础的存储虚拟化；再往上有几个常用层，各自的边
 - **RAID vs 备份**：不是二选一，是两层——RAID 保可用，备份保可恢复。只有 RAID 的系统仍然会丢数据。
 - **RAID5 vs RAID6 vs RAID10**：盘少、写少、容量优先可考虑 RAID5；盘多、容量大、重建窗口长用 RAID6；随机写密集、性能优先用 RAID10（容量代价一半）。
 - **软 RAID vs 硬件 RAID**：可迁移性与成本优先选软 RAID；需要写缓存保护与成熟监控选硬件 RAID，但要把「卡是单点」计入风险。
-- **RAID vs 文件系统自带冗余**：btrfs 的镜像/校验能带来自愈能力，但 RAID56 的成熟度与性能需按官方文档核实（**待核实**）；关键数据仍建议「RAID/LVM + 独立备份」而不是只靠文件系统。
+- **RAID vs 文件系统自带冗余**：btrfs 的镜像/校验能带来自愈能力；但 **RAID5/RAID6 在内核中仍标注为实验特性**，写入性能与故障恢复行为随内核版本变化，判断是否可用应以 btrfs 官方文档和本机 `btrfs device stats`、`btrfs scrub status` 的实际输出为准。关键数据仍建议「RAID/LVM + 独立备份」而不是只靠文件系统。
 
 ## 小结
 
@@ -139,9 +142,9 @@ RAID 是最基础的存储虚拟化；再往上有几个常用层，各自的边
 ## 练习
 
 1. 级别对账：用正文的三张账，计算 6 块 4 TiB 盘在 RAID0、RAID1、RAID5、RAID6、RAID10 下的可用容量与可容忍故障数，写出每种的最小盘数。
-2. 创建与观察（需在虚拟机中完成）：按正文用两个 loop 文件建 RAID1，记录 `cat /proc/mdstat` 与 `sudo mdadm --detail /dev/md0` 的关键行，解释 `[UU]` 与 `State: clean`。
-3. 降级演练（需在虚拟机中完成）：`--fail` 一块后用 `mount` 与写入验证阵列仍可用，记录 `[U_]`；再 `--remove`、`--add`，观察重建进度直到恢复 `[UU]`。
-4. 元数据残留（需在虚拟机中完成）：把一块盘 `--remove` 后不清 `--zero-superblock` 直接 `--add`，记录报错；清掉再 `--add`，说明为什么必须清。
+2. 创建与观察（可实机；只用 /tmp 下的 loop 镜像）：按正文用两个 loop 文件建 RAID1，记录 `cat /proc/mdstat` 与 `sudo mdadm --detail /dev/md0` 的关键行，解释 `[UU]` 与 `State: clean`。
+3. 降级演练（可实机；只用 /tmp 下的 loop 镜像）：`--fail` 一块后用 `mount` 与写入验证阵列仍可用，记录 `[U_]`；再 `--remove`、`--add`，观察重建进度直到恢复 `[UU]`。
+4. 元数据残留（可实机；只用 /tmp 下的 loop 镜像）：把一块盘 `--remove` 后不清 `--zero-superblock` 直接 `--add`，记录报错；清掉再 `--add`，说明为什么必须清。
 5. 叠放设计题：给「4 块 2 TiB 盘、需要坏一块不停机、还要能在线扩容」写出一套设备栈（从盘到文件系统），标出每一层的命令与验证点。
 6. 边界判断题：分别回答「RAID1 能否防误删」「RAID6 能否防勒索」「硬件 RAID 卡坏了怎么办」，各用一句话说明理由。
 

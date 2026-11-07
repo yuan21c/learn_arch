@@ -13,13 +13,16 @@
 | 崩溃重启 | 不能 | `Restart=on-failure` |
 | 日志 | 自己写到文件，容易丢 | 自动进 journal，`journalctl -u` 可查 |
 | 运行身份 | 当前用户 | `User=` 显式指定 |
-| 依赖顺序 | 无 | `After=`/`Wants=` 声明 |
+| 启动顺序 | 无 | `After=`/`Before=` 声明先后 |
+| 弱依赖 | 无 | `Wants=` 表达「希望一起启动」，失败不阻塞本单元 |
 
-这五项（含开机自启）才是「部署」与「临时跑一下」的真正分界线。
+这几项（含开机自启）才是「部署」与「临时跑一下」的真正分界线。
+
+三个指令管三件不同的事，别混：**顺序**看 `After=`/`Before=`（只排序，不拉依赖），**强依赖**看 `Requires=`（依赖失败本单元也不启动），**启动意愿**看 `Wants=`（尽量一起启动，但对方起不来不影响自己）。只写 `Wants=` 不写 `After=`，对方会并行启动，先后没有保证。
 
 ## 一个最小可用的 service
 
-假设应用是 `/opt/demo/app.py`，用 `/opt/demo/venv/bin/python` 运行、监听 8000（需 root）。先造出 unit 里引用的运行身份与目录——`User=demo` 不存在时 `enable --now` 会报 `status=217/USER`，练习直接卡死：
+假设应用是 `/opt/demo/app.py`，用 `/opt/demo/venv/bin/python` 运行、监听 8000（≥1024 是非特权端口，`User=demo` 可直接绑定，不需要 root）。先造出 unit 里引用的运行身份与目录——`User=demo` 不存在时 `enable --now` 会报 `status=217/USER`，练习直接卡死：
 
 ```bash
 sudo useradd --system --user-group --home-dir /opt/demo --shell /usr/sbin/nologin demo
@@ -97,6 +100,7 @@ EOF
 - **`User=`/`Group=` 必须显式给**，否则以 root 运行——这是「一个 Web 漏洞变成整机失守」的起点。
 - **`WorkingDirectory=` 用绝对路径**，不要依赖默认值。
 - **目录权限要对齐**：`User=demo` 时，`/opt/demo` 与数据目录必须让 `demo` 可读可写，否则报 `Permission denied`（日志里很清楚，但容易被当成代码 bug）。
+- **绑定端口要算权限**：Linux 默认 `net.ipv4.ip_unprivileged_port_start=1024`，≥1024 的端口普通用户就能绑；要监听 80/443，用 `AmbientCapabilities=CAP_NET_BIND_SERVICE`（只授予绑定特权端口的能力），不要为了端口把 `User=` 改成 root，那会把整个服务重新暴露在提权路径上。
 
 需要「用完即弃」的系统用户时，可用 `DynamicUser=yes`：systemd 在启动时动态分配 UID/GID，停止后回收；配合 `StateDirectory=`/`CacheDirectory=` 会自动创建并赋权的 `/var/lib/私有名`、`/var/cache/私有名`。
 
@@ -155,6 +159,8 @@ loginctl enable-linger "$USER"
 | -------------------------- | ---------------------------------------------- | -------------------------------------------------------- |
 | `217/USER` | `User=`/`Group=` 指向不存在的账号 | 先建系统用户，再 `daemon-reload` |
 | `203/EXEC` | `ExecStart` 的路径不存在或不可执行 | `ls -l` 核对绝对路径与执行位；虚拟环境路径写错最常见 |
+| `200/CHDIR` | `WorkingDirectory=` 不存在或 `User=` 无权进入 | `install -d -o demo -g demo <目录>` |
+| `Permission denied` 出现在日志而非启动状态 | 端口 <1024 由非 root 绑定，或数据目录不可写 | 改用 ≥1024 端口，或加 `AmbientCapabilities=CAP_NET_BIND_SERVICE`；目录用 `install -d -o` 对齐属主 |
 | `226/NAMESPACE` | `ProtectSystem=`/`ReadWritePaths=` 指向不存在的目录 | 预建目录并 `install -d -o`，或临时加 `-` 前缀 |
 | 启动即 `inactive (dead)` 且退出码 0 | 程序自己 daemonize，`Type=simple` 误判 | 改 `Type=forking` + `PIDFile=`，或去掉程序的 `--daemon` |
 | `Address already in use` | 端口被别的进程占用 | `ss -tlnp \| grep 端口` 找出占用者并改端口或停旧进程 |

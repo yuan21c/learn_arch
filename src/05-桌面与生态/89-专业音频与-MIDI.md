@@ -95,7 +95,7 @@ cat /proc/asound/cards
 ls /dev/snd/
 ```
 
-- 无图形/无 PipeWire 会话时，`pw-cli`/`pw-metadata` 会报 `failed to connect: Host is down`（本机实测）；这表示**没有运行中的音频会话**，不是声卡坏了。
+- 无图形/无 PipeWire 会话时，`pw-cli`/`pw-metadata` 会报 `failed to connect: Host is down`（本书验证环境实测）；这表示**没有运行中的音频会话**，不是声卡坏了。
 - `pw-top` 能看到每个节点的 `QUANT`/`RATE` 与 xrun 计数；xrun 列持续增长，就要降采样率、加缓冲或修实时权限。
 - `ulimit -r` 为 0 时，先解决权限再谈调参；否则调小缓冲只会让 xrun 更多。
 

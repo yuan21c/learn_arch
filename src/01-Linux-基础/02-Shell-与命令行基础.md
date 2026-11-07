@@ -33,7 +33,7 @@ Linux 只有一棵树，树根是 `/`。路径就是从树上某个节点走到�
 | 绝对路径 | 根 `/` | `/etc/hosts` | 任何位置执行都指向同一文件 |
 | 相对路径 | 当前工作目录 | `hosts` | 换个目录就指向别的文件 |
 
-三个特殊名字贯穿全书：`.` 是当前目录，`..` 是上一级目录，`~` 是自己的家目录（root 则是 `/root`）。假设当前在 `/var/log`：`cat syslog` 等价于 `cat /var/log/syslog`，而 `cat ../log/syslog` 是绕路上一级再下来。目录之间一律用 `/` 分隔，结尾没有盘符——所有路径都从根 `/` 写起。
+三个特殊名字贯穿全书：`.` 是当前目录，`..` 是上一级目录，`~` 是自己的家目录（root 则是 `/root`）。假设当前在 `/etc`：`cat hosts` 等价于 `cat /etc/hosts`，而 `cat ../etc/hosts` 是绕路上一级再下来。目录之间一律用 `/` 分隔，结尾没有盘符——所有路径都从根 `/` 写起。
 
 ## cd、pwd 与 ls（深讲）
 
@@ -94,7 +94,7 @@ List information about the FILEs (the current directory by default).
 Sort entries alphabetically if none of -cftuvSUX nor --sort is specified.
 ```
 
-- `man 命令`：完整手册。章节按主题编号——`man 1 ls` 是用户命令，`man 5 passwd` 是文件格式，`man 7` 是综述；阅读时空格翻页、`/` 搜索、`q` 退出。
+- `man 命令`：完整手册。章节按主题编号——`man 1 ls` 是用户命令，`man 5 passwd` 是文件格式，`man 7` 是杂项与约定（如 `man 7 signal`、`man 7 pipe`）；阅读时空格翻页、`/` 搜索、`q` 退出。
 - `whatis 命令`：一行摘要，按页名精确匹配（等价 `man -f`），用来快速确认「这个命令是不是干那件事的」；更宽的关键词搜索用 `man -k`（等价 `apropos`，连同页描述一起匹配）。
 
 `man` 通常由 `man-db` 提供：若你的系统里 `man` 或 `whatis` 不存在，先用发行版包管理器安装 `man-db`（见 [Man page](https://wiki.archlinux.org/title/Man_page)）。

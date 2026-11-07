@@ -21,7 +21,7 @@ SUID 程序是三元组的日常表演者：你（real=1000）执行 `/usr/bin/p
 内核**忽略解释型脚本上的 SUID/SGID 位**：`chmod u+s backup.sh` 之后执行它，effective UID 仍然是你自己。原因是执行脚本的其实是 `bash`/`python`，被 SUID 的文件从未作为可执行映像被加载——否则任何人都能复制你的脚本、改一行就提权。
 
 ```bash
-# ，/tmp 演练
+# 在 /tmp 演练，不需要 root
 printf '#!/bin/bash\nid -u\n' > /tmp/suid.sh && chmod 4755 /tmp/suid.sh
 /tmp/suid.sh # 输出 1000，不是 0——SUID 被忽略
 ls -l /tmp/suid.sh # -rwsr-xr-x（位还在，但不起作用）
@@ -36,7 +36,7 @@ ls -l /tmp/suid.sh # -rwsr-xr-x（位还在，但不起作用）
 Capabilities 把「root 无所不能」拆成单点能力（`cap_setuid`、`cap_net_bind_service`、`cap_sys_admin`……），程序只带需要的几块：
 
 ```bash
-# ，需 sudo；setcap/getcap 来自 libcap 包
+# 需 sudo；setcap/getcap 来自 libcap 包
 getcap /usr/bin/ping # 当前 iputils 的 ping 无文件能力（输出为空）；旧版常见 cap_net_raw=ep
 getcap -r /usr 2>/dev/null # 想观察真实的能力文件，看 newuidmap/newgidmap 一类
 sudo setcap cap_net_bind_service=+ep /usr/local/bin/myserver # 换成你自己的二进制，该文件须已存在
@@ -55,7 +55,7 @@ ugo 之外，ACL 给文件挂一张按名字的授权表，`ls -l` 权限位后�
 - **清理有两条**：`setfacl -k 目录` 只删默认条目，`setfacl -b 文件` 清掉全部扩展条目（`+` 消失）；`setfacl -R` 递归套用，规则同 `chmod -R` 一样要先在 `/tmp` 演练。
 
 ```bash
-# ，/tmp 演练
+# 在 /tmp 演练，不需要 root
 mkdir -p /tmp/lab7 && cd /tmp/lab7 && touch acl.txt
 setfacl -m u:nobody:r acl.txt && getfacl acl.txt | grep -E 'user|mask'
 mkdir dir && setfacl -d -m g:wheel:rwx dir
@@ -75,7 +75,7 @@ setfacl -b acl.txt # 全部清理
 | `+C` 关 COW | btrfs 上关闭写时复制 | 数据库文件、swapfile（见《存储进阶》章） |
 
 ```bash
-# ，需 sudo，/tmp 演练
+# 需 sudo，/tmp 演练
 cd /tmp/lab7 && echo data > attr.txt
 sudo chattr +i attr.txt && lsattr attr.txt # 显示 ----i----
 echo more >> attr.txt # Operation not permitted
@@ -102,6 +102,7 @@ sudo chattr -i attr.txt # 解除后可继续写
 3. **以为脚本上的 SUID 有效**。内核忽略脚本的 SUID/SGID；需要提权逻辑时用二进制、capabilities 或受控服务。
 4. **capabilities 在复制/打包后丢失**。`cp` 默认不保留 xattr，`tar`/`rsync` 需要显式保留；用 `getcap` 复核。
 5. **ACL mask 把权限截断**。给用户加了 `rw`，但 `mask` 只有 `r`，实际仍是只读；`getfacl` 的 `#effective` 是最终答案。
+6. **在带 `nosuid` 的 `/tmp` 做 SUID 实验**。Arch 的 `/tmp` 是 tmpfs 且挂 `nosuid`，其上的 SUID 与 file capabilities 全部失效；先 `findmnt -no OPTIONS /tmp`，换到不带 `nosuid` 的目录（如家目录）再试。
 
 **验证与回滚**：
 
@@ -129,7 +130,18 @@ ACL 依赖底层文件系统支持：ext4/xfs/btrfs 默认开启，部分网络�
 ## 练习
 
 1. 用 `grep '^Uid' /proc/self/status` 记录自己的 UID 三元组，再跑一次 `sudo grep '^Uid' /proc/self/status`，解释两行差异（预期：第二组变成 `0 0 0 0`，而 `passwd` 执行时 real 仍是 1000）。
-2. 按上文造 `/tmp/suid.sh` 验证脚本 SUID 无效，再做一个真正的二进制副本对比：`sudo cp /usr/bin/id /tmp/lab7/idcopy && sudo chown root:root /tmp/lab7/idcopy && sudo chmod 4755 /tmp/lab7/idcopy`，随后 `/tmp/lab7/idcopy -u`；先 `findmnt /tmp` 确认未挂 `nosuid`（预期：脚本输出自身 UID，二进制输出 0）。
+2. 按上文造 `/tmp/suid.sh` 验证脚本 SUID 无效，再做一个真正的二进制副本对比：
+
+   ```bash
+   mkdir -p /tmp/lab7 # 目录不存在时 cp 会直接失败
+   sudo cp /usr/bin/id /tmp/lab7/idcopy
+   sudo chown root:root /tmp/lab7/idcopy
+   sudo chmod 4755 /tmp/lab7/idcopy
+   findmnt -no TARGET,OPTIONS /tmp # 先看 /tmp 挂着什么选项
+   /tmp/lab7/idcopy -u
+   ```
+
+   Arch 默认把 `/tmp` 挂成 tmpfs 且带 `nosuid`（本书验证环境实测 `findmnt -no OPTIONS /tmp` 含 `nosuid`），此时二进制副本同样输出你自己的 UID——SUID 位被挂载选项否决。要看到 0，换到不带 `nosuid` 的目录：先 `findmnt -T "$HOME" -no OPTIONS` 确认家目录没有 `nosuid`，再把实验移到 `$HOME/lab7` 重做。预期：脚本在任何位置都输出自身 UID；二进制在带 `nosuid` 的 `/tmp` 输出自身 UID，在不带 `nosuid` 的目录输出 `0`。
 3. ACL 全流程：授权 → 看 mask 与 `#effective:` → 建默认 ACL → 验证继承 → `setfacl -k` 与 `-b` 清理（预期：`+` 标志随 `-b` 消失，`-k` 后新建文件不再继承）。
 4. `getcap -r /usr 2>/dev/null | head` 演示列出带能力的文件（只看 /usr 是为了快；全盘审计用 `getcap -r / 2>/dev/null`），任选两个查它的包归属（预期：能说出每个文件的能力含义）。
 5. 阅读题：解释「给脚本加 SUID root」为什么在 Linux 上不成立，并说出两条正确替代；再解释为什么「给 `bash` 设 file capabilities」同样是危险做法。

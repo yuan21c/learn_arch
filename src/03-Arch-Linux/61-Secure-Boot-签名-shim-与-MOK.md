@@ -19,7 +19,7 @@
 | MOK | shim 信任的自有密钥列表，用 `mokutil` 在系统内维护 |
 
 ```bash
-# 需在虚拟机中完成，已装好的系统
+# 必须在真机固件中完成，已装好的系统；VM 只能验证到 sbctl status/sbctl verify 为止
 bootctl status # 看引导器与固件/ESP 状态
 sbctl status # 看签名工具视角的 Setup Mode 与已签文件
 mokutil --sb-state # 看 Secure Boot 当前是否启用（需 sudo pacman -S mokutil）
@@ -36,20 +36,21 @@ mokutil --sb-state # 看 Secure Boot 当前是否启用（需 sudo pacman -S mok
 `sbctl create-keys` 在本地生成密钥，`sbctl enroll-keys` 会把公钥写入固件 `PK`/`KEK`/`db`。写固件是不可逆的系统级改动，先完成下面危险块中的检查与备份再执行。
 
 > **危险**：`enroll-keys` 直接改写固件密钥库（PK/KEK/db），写错或中途断电可能导致机器无法启动。执行前必须：
-> 1. 用 `sudo sbctl status` 确认 `Setup Mode: Enabled`，否则固件会拒绝写入；
+> 1. 用 `sudo sbctl status` 确认 `Setup Mode: Enabled`；若显示 `Disabled`，说明固件里已有 PK，`enroll-keys` 会被拒绝。先进固件把 PK 清掉——厂商菜单名不同，常见的有 `Clear PK`、`Reset to Setup Mode`、`Restore Factory Keys`、`Erase all Secure Boot variables`，以固件手册为准——保存重启后再用 `sbctl status` 确认已进入 Setup Mode；
 > 2. 备份现状——`sudo efibootmgr -v > efibootmgr.bak`、`sudo sbctl status > sbctl-status.bak`，并拍照记录固件里「清除 PK / 恢复出厂密钥」入口的位置；
+> 3. 确认固件允许写入自定义密钥。部分厂商固件锁定 PK 或只接受微软签名，写完也不会生效。
 >
 > 以下命令均需 root（示例中已写 `sudo`）。写入后若无法启动：进固件设置清除 PK 或恢复出厂密钥（厂商菜单名不同），再用 Live ISO 修复引导。部分厂商固件不允许写入自定义密钥，此时只能退回「关闭 Secure Boot」或 shim + MOK 路线（以 Wiki 与固件手册为准）。
 
 ```bash
-# 需在虚拟机中完成，需 root
+# 必须在真机固件中完成，需 root；VM 里跑不到 enroll-keys 这一步（没有真实固件的 Setup Mode）
 sudo pacman -S sbctl
 sudo sbctl create-keys
 sudo sbctl enroll-keys --microsoft # 写入自签密钥，同时保留微软 CA（见下方说明，以 Wiki 为准）
 sudo sbctl status # 预期能看到密钥信息，且 Setup Mode 已变为 Disabled
 ```
 
-写入完成后执行一次 `sudo sbctl status` 验证 `Setup Mode: Disabled` 且密钥已登记，再重启一次确认能进系统。
+写入完成后执行一次 `sudo sbctl status` 验证 `Setup Mode: Disabled` 且密钥已登记。**注意这只说明密钥写进去了，不代表 Secure Boot 已经生效**——`enroll-keys` 之后固件通常仍处于「关闭」状态，要先签完文件再回固件打开开关（见下方「启用」一步）。
 
 `--microsoft` 表示在登记自签密钥的同时保留固件 db 中的微软证书（Microsoft CA）。本手册保留它，是因为省略后带微软签名的固件 option ROM（部分显卡、网卡、阵列卡的扩展 ROM）不会被信任、无法启动，设备初始化可能卡在固件阶段。代价是安全边界相应放宽：固件不只信任你自签的密钥，也一并信任微软签发的第三方签名。可用性优先时保留 `--microsoft`；若追求最小信任面而去掉它，需接受上述兼容性风险。
 
@@ -61,6 +62,17 @@ sbctl sign -s /boot/EFI/systemd/systemd-bootx64.efi # 路径随引导器而变
 sbctl sign -s /boot/EFI/BOOT/BOOTX64.EFI # fallback 入口也要签
 sbctl verify # 预期每个文件都已签，无 NOT SIGNED
 ```
+
+**最后一步：在固件里真正启用 Secure Boot。** 签名齐了以后再进固件，把 Secure Boot 设为 `Enabled`（有的厂商叫 `Secure Boot Mode: Standard`），保存重启；先插着 Live ISO 以防起不来。
+
+```bash
+# 重启后复验：这三条都在真机上跑，VM 里看不到真实固件状态
+mokutil --sb-state # 预期：Secure Boot enabled
+bootctl status # 预期：Secure Boot: enabled
+sbctl status # Secure Boot 一行应为 enabled
+```
+
+只看到 `Setup Mode: Disabled` 是不够的——它只表示固件已有 PK、不再接受写入；Secure Boot 开关可能仍是关的。三条里任何一条显示 `disabled`，都说明还没真正启用，回固件检查开关与保存动作。
 
 要点：
 
@@ -75,7 +87,7 @@ shim 是微软签名的小引导器，被固件信任后转而加载你注册进
 这条路线不动固件密钥库，适合公司机器或无法进入固件设置的场景；代价是多一层 shim，且打包形态随版本变化较大，**流程细节以 Wiki 为准**。排障入口：
 
 ```bash
-mokutil --list-enrolled # 需在虚拟机中完成，看 MOK 里已有哪些密钥
+mokutil --list-enrolled # 须在完成 MOK Enroll 的真机上执行，看 MOK 里已有哪些密钥
 mokutil --list-new # 看待注册的密钥
 ```
 
@@ -106,7 +118,7 @@ mokutil --list-new # 看待注册的密钥
 ## 失败模式
 
 - **只签引导器不签内核**：固件信任了 `systemd-bootx64.efi`，下一跳加载未签内核仍会被拦；链上每一环都要签。
-- **把 Setup Mode 当成「Secure Boot 已关闭」**：Setup Mode 是 `PK` 未注册、允许写入密钥的状态；Secure Boot 开关是另一件事。
+- **把 `Setup Mode: Disabled` 当成「Secure Boot 已启用」**：前者只说明固件已有 PK、不再接受写入；开关是否打开要另看 `mokutil --sb-state`。`enroll-keys` 后忘了回固件启用，是最常见的「签了但没生效」。
 - **没备份就 `enroll-keys`**：写固件密钥库不可逆，写错或断电可能让机器起不来；先记录 `efibootmgr -v`、`sbctl status` 与固件恢复入口。
 - **忽略 `--microsoft` 的信任代价**：保留微软 CA 会让固件同时信任微软签发的第三方代码；去掉它则可能让带微软签名的扩展 ROM 无法初始化。取舍要写进维护记录。
 - **内核升级后不重签**：`/boot/vmlinuz-linux` 被替换，旧签名失效；没有自动重签 hook 时必须手动 `sbctl sign -s`。
@@ -141,14 +153,14 @@ efibootmgr -v
 
 - Secure Boot 校验引导器与内核的签名，链上任何一环不受信任就启动失败。
 - 本书主线是关闭它；想开着就用 sbctl 自签；不便写固件密钥时用 shim + MOK。
-- sbctl 路线的关键是 Setup Mode 下 `enroll-keys`，以及二进制更新后的重签。
+- sbctl 路线的关键是 Setup Mode（清 PK）下 `enroll-keys`、签完所有 EFI 二进制、回固件启用 Secure Boot 并用 `mokutil --sb-state` 复验，以及二进制更新后的重签。
 - 引导层改动的通用安全网：fallback 启动项、Live ISO、固件原值拍照。
 
 ## 练习
 
-1. 进入固件设置，记录 Secure Boot 当前状态与菜单路径后原样退出（需在虚拟机中完成；预期：能说出 Enabled/Disabled 与所在菜单）。
-2. 在 VM 中执行 `sbctl create-keys` 与 `sbctl status`，解释 Setup Mode 两种状态各自的含义（需在虚拟机中完成；预期：`sbctl status` 输出密钥信息与 Setup Mode 状态）。
-3. 用 `sbctl sign -s` 签名任意测试二进制并 `sbctl verify` 检查（需在虚拟机中完成；预期：verify 中该文件无 NOT SIGNED）。
+1. 进入固件设置，记录 Secure Boot 当前状态与菜单路径后原样退出（必须在真机固件中完成；VM 的 OVMF 菜单与真实厂商菜单不同，看到的不作数。预期：能说出 Enabled/Disabled 与所在菜单）。
+2. 执行 `sbctl create-keys` 与 `sbctl status`，解释 Setup Mode 两种状态各自的含义（create-keys 与 status 可在 VM 中做；`enroll-keys` 与真正的「启用」必须真机固件。预期：`sbctl status` 输出密钥信息与 Setup Mode 状态）。
+3. 用 `sbctl sign -s` 签名任意测试二进制并 `sbctl verify` 检查（签名可在 VM 中做，但「固件是否接受这个签名」只能在真机验证。预期：verify 中该文件无 NOT SIGNED）。
 4. 查 `pacman -Ql sbctl | grep hook`，判断你的系统是否会自动重签（预期：能列出 hook 路径或确认没有）。
 5. 阅读题：解释为什么内核升级后需要重签，而 `mkinitcpio -P` 通常不需要。
 6. 阅读题：对比 sbctl 与 shim+MOK 的信任根差异。

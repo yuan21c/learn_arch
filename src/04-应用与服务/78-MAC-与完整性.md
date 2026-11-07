@@ -15,7 +15,7 @@
 | SELinux | 按标签（label-based） | 策略库 + 文件上下文 | 企业发行版、精细多类隔离 |
 | TOMOYO | 按路径/域名 | 策略文件 | 嵌入式、特定发行版 |
 
-Arch 官方内核默认不以 SELinux 为目标，完整启用要专门的内核与策略；普通 Arch 用户通常选 AppArmor。**不要同时按两套教程混配**，先确认当前内核命令行里的 `lsm=` 与 `aa-status`/`sestatus` 的实际输出。
+Arch 官方内核**已经编译了 SELinux 支持**（`CONFIG_SECURITY_SELINUX=y`，可用 `zgrep CONFIG_SECURITY_SELINUX /proc/config.gz` 核对），只是默认没有启用。完整启用需要三件事齐全：安装 SELinux 用户空间与策略、在内核命令行加 `lsm=`（保留现有 LSM 的前提下追加 `selinux`，以当前 `lsm=` 值为准）、重新生成 initramfs/引导项，并确保文件系统支持 xattr。缺任何一项都表现为「装了但 `sestatus` 说没启用」。普通 Arch 用户通常选 AppArmor，省事得多。**不要同时按两套教程混配**，先确认当前内核命令行里的 `lsm=` 与 `aa-status`/`sestatus` 的实际输出。
 
 ## AppArmor：profile、状态与日志
 
@@ -65,18 +65,25 @@ grep 'Root hash' /tmp/verity.txt
 veritysetup verify /tmp/vdata.img /tmp/vhash.img "$(grep 'Root hash' /tmp/verity.txt | awk '{print $NF}')"
 ```
 
-`format` 输出根哈希，`verify` 用根哈希校验整棵哈希树。**本机实测：cryptsetup 2.8.8 可直接对两个普通文件执行 `format`/`verify`，无需 loop 设备**；若你的版本要求块设备，再用 `losetup` 绑定。把数据文件改一个字节再 `verify`，会看到 `Verification failed at position 0`——这就是「篡改可发现」。
+`format` 输出根哈希，`verify` 用根哈希校验整棵哈希树。**本书验证环境实测：cryptsetup 2.8.8 可直接对两个普通文件执行 `format`/`verify`，无需 loop 设备**；若你的版本要求块设备，再用 `losetup` 绑定。把数据文件改一个字节再 `verify`，会看到 `Verification failed at position 0`——这就是「篡改可发现」。
 
 ## 设备、恶意软件与流量验证
 
-- **USBGuard**：设备白名单，防「插一个恶意 USB」。
+- **USBGuard**：设备白名单，防「插一个恶意 USB」。**默认全拒绝**：规则文件里没有的设备一律被 block，所以启用顺序错了会当场失去键盘鼠标。
+  **动手前必读**：先准备第二个输入通道——同一局域网的 SSH 会话，或另一把有线键盘/串口控制台；并确认 `/etc/usbguard/rules.conf` 里当前键鼠都带 `allow`。若启动后发现键鼠失灵，在另一终端执行 `sudo systemctl stop usbguard` 即可恢复，再回来修规则。
+
   ```bash
   sudo pacman -S usbguard
-  sudo usbguard generate-policy > /tmp/usb.rules
-  sudo usbguard list-devices
-  sudo systemctl enable --now usbguard
+  sudo usbguard generate-policy > /tmp/usb.rules # ① 生成当前设备策略
+  grep -Ei 'keyboard|mouse|kbd|hid' /tmp/usb.rules # ② 审阅：当前键鼠必须在 allow 列表里
+  sudo usbguard list-devices # ③ 对照每个设备的设备名与状态
+  sudo install -m 0600 -o root -g root /tmp/usb.rules /etc/usbguard/rules.conf # ④ 规则落盘
+  sudo systemctl start usbguard # ⑤ 先 start，不动键盘鼠标试一试
+  sudo usbguard list-devices | grep -i blocked # ⑥ 预期：当前键鼠不在 blocked 列表
+  sudo systemctl enable usbguard # ⑦ 确认键鼠可用后再设开机自启
   ```
-  上线前务必把键盘/鼠标加入允许列表，否则会把自己锁死；`/tmp/usb.rules` 审阅后再装到 `/etc/usbguard/rules.conf`。
+
+  不要用 `enable --now` 一步到位：它在规则尚未安装时就会启动守护进程，默认拒绝策略会立刻封锁当前输入设备。若 `generate-policy` 的输出里没有键盘（远程或纯串口机器常见），先手工加一条 `allow` 规则再继续。
 - **ClamAV**：恶意软件扫描，靠签名库；`sudo freshclam` 更新，`clamscan -r /tmp` 扫描。它不是 EDR，不能替代行为监控。
 - **nmap**：从外部视角看自己开了哪些端口。只对自有主机使用：
   ```bash
@@ -97,7 +104,7 @@ veritysetup verify /tmp/vdata.img /tmp/vhash.img "$(grep 'Root hash' /tmp/verity
 - **把 dm-integrity 当加密**：它只校验完整性，不保密；保密要用加密层（第 22 章）。
 - **IMA 策略过严**：未签名/未度量的程序被拒；先在 `audit` 模式观察，再切 `enforce`。
 - **TPM PCR 变化后密钥解不开**：固件/引导更新改变了度量值；密封策略要考虑 PCR 变化，保留恢复路径。
-- **USBGuard 锁死键鼠**：白名单没包含当前 HID；保留一个已授权设备或控制台通道再启用。
+- **USBGuard 锁死键鼠**：白名单没包含当前 HID；启用前保留一个已授权设备或 SSH 通道，锁死后在另一终端 `sudo systemctl stop usbguard` 恢复。
 - **ClamAV 签名过期**：`freshclam` 失败后仍在扫，给人「已检查」的错觉。
 - **nmap/Wireshark 越界**：扫描/抓包第三方网络或未授权系统，法律与职业风险都高。
 - **核心转储泄密**：崩溃文件里带密钥/令牌，却被长期保留或打包上传。
@@ -122,7 +129,7 @@ nmap -sT -p 22,80,443 127.0.0.1
 - **AppArmor**：`sudo aa-complain <profile>` 临时只记录；确认规则后 `aa-enforce`；彻底移除用 `apparmor_parser -R <profile>`。
 - **SELinux**：`restorecon -Rv` 修标签；临时 `setenforce 0` 只用于定位，不要长期宽容。
 - **dm-verity/integrity**：移除映射需要 root 与重启；验证阶段只用 `/tmp` 文件，失败就删除两个镜像重来。
-- **USBGuard**：`systemctl stop usbguard` 前先确认键鼠已允许；规则文件保留备份，恢复后重新加载。
+- **USBGuard**：锁死时在另一个终端 `sudo systemctl stop usbguard`（这一步不需要键鼠）；把缺的设备补进 `/etc/usbguard/rules.conf` 后再 `systemctl start usbguard`，确认可用才 `enable`。
 - **IMA/TPM**：策略改回 `audit` 或移除策略；PCR 变化导致的解封失败需要回到原引导状态或更新密封策略。
 - **核心转储**：改 `Storage=` 后 `systemctl restart systemd-coredump`，并清理已有转储。
 

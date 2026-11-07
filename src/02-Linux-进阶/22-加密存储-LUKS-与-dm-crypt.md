@@ -37,18 +37,18 @@ LUKS1 与 LUKS2 的差别值得记：
 | 默认 KDF | PBKDF2 | Argon2id（抗 GPU/ASIC） |
 | 默认数据偏移 | 约 2 MiB | 16 MiB（keyslot 区更大） |
 | 附加能力 | 少 | token（TPM、FIDO2、systemd-cryptenroll）、在线 reencrypt |
-| 兼容性 | 老工具与引导器普遍支持 | 新工具支持；GRUB 对 LUKS2 的支持有限制（**待核实**具体版本与参数组合） |
+| 兼容性 | 老工具与引导器普遍支持 | 新工具支持；GRUB 对 LUKS2 的支持有限：只解析 PBKDF2 派生的 keyslot，Argon2 解不开；加密 `/boot` 还需 `GRUB_ENABLE_CRYPTODISK=y` |
 
-在本机实测（cryptsetup 2.8.8）用默认参数 `luksFormat --type luks2` 后，`luksDump` 显示：`Metadata area: 16384 [bytes]`、`Keyslots area: 16744448 [bytes]`、数据 `offset: 16777216 [bytes]`，cipher 为 `aes-xts-plain64`、密钥 512 bit、PBKDF 为 `argon2id`。这些数字解释了为什么 LUKS2 容器开头会「吃掉」约 16 MiB——它不是文件系统，是头部预留。
+在本书验证环境实测（cryptsetup 2.8.8）用默认参数 `luksFormat --type luks2` 后，`luksDump` 显示：`Metadata area: 16384 [bytes]`、`Keyslots area: 16744448 [bytes]`、数据 `offset: 16777216 [bytes]`，cipher 为 `aes-xts-plain64`、密钥 512 bit、PBKDF 为 `argon2id`。这些数字解释了为什么 LUKS2 容器开头会「吃掉」约 16 MiB——它不是文件系统，是头部预留。
 
 还有一条必须说清的边界：**LUKS 提供机密性，不提供完整性**。攻击者不能读出内容，但可以在你不知道的情况下翻转密文位，导致解密后的明文出现可控错误；`dm-crypt` 默认不检测这种篡改。需要认证加密时，LUKS2 可以在格式化时加 `--integrity`，底层换成 dm-integrity，代价是额外空间与性能。
 
 ## 步骤：在 loop 文件上建一个 LUKS2 容器
 
-学习阶段不要碰真盘。用一个普通文件当块设备（loop device），创建、打开、关闭、删除都能反复做，且**删掉文件就彻底回滚**。以下命令已在本机 Arch 环境实际跑通：
+学习阶段不要碰真盘。用一个普通文件当块设备（loop device），创建、打开、关闭、删除都能反复做，且**删掉文件就彻底回滚**。以下命令已在本书验证环境跑通（cryptsetup 2.8.8，全程只在 `/tmp` 下操作）：
 
 ```bash
-# 需在虚拟机中完成（要 root；实机也能做，但只碰 /tmp 下的文件）
+# 要 root；实机也能做，但只碰 /tmp 下的文件
 mkdir -p /tmp/lab22 && cd /tmp/lab22
 truncate -s 64M vault.img # 造一个 64 MiB 的容器文件
 LOOP=$(sudo losetup -f --show vault.img) # 分配空闲 loop 设备并接住设备名（如 /dev/loop0）
@@ -155,7 +155,7 @@ rm -rf /tmp/lab22
 
 - **全盘加密 vs 文件级加密**：全盘加密防「整机/整盘丢失」，但对已开机、已解锁的系统无能为力；文件级加密（GPG、age）能保护单个文件跨介质传输，但元数据与目录结构可能暴露。两者不是替代关系，常见组合是「系统盘全盘加密 + 备份文件再单独加密」。
 - **LUKS vs plain dm-crypt**：`plain` 模式没有 header、没有 keyslot，口令直接派生密钥，看起来更「干净」，但 cipher 参数要靠记忆或外部记录，改口令等于全盘重加密，也没有多口令能力。除特殊威胁模型外，选 LUKS2。
-- **LUKS2 vs LUKS1**：新系统默认 LUKS2；只有在引导器/工具链明确只支持 LUKS1 时才退回（例如某些 GRUB 组合，需按官方文档**核实**）。LUKS1 的 Argon2 缺失与固定头部是真实的安全与运维代价。
+- **LUKS2 vs LUKS1**：新系统默认 LUKS2。若要让 GRUB 直接解锁加密的 `/boot`，要么用 `--pbkdf pbkdf2` 建 LUKS2 并开 `GRUB_ENABLE_CRYPTODISK=y`，要么退回 LUKS1；具体能力以 GRUB 文档与你的版本为准。更省事的做法是 `/boot` 单独分区、不加密，把 LUKS 只用在根分区上。
 - **passphrase vs keyfile vs TPM/FIDO2**：口令易用但可被暴力猜测（Argon2 只是提高成本）；keyfile 适合自动化，但文件本身要保护；TPM/FIDO2 能免输入，却把「能否开机解锁」绑定到硬件状态，主板更换或固件升级可能导致解不开。生产环境常用「keyfile + 恢复口令」双路径。
 - **TRIM 开 vs 关**：开提升 SSD 寿命与写性能，代价是泄露使用模式；关则保留「看不出盘上有什么」，但长期可能影响 SSD 垃圾回收效率。
 - **加密 vs 备份**：加密不替代备份，header 备份也不替代数据备份。加密盘损坏时，唯一可靠的路是「另一份未受同一故障影响的备份」。
@@ -172,10 +172,10 @@ rm -rf /tmp/lab22
 
 ## 练习
 
-1. 容器全流程（需在虚拟机中完成）：按正文在 `/tmp/lab22` 建 64 MiB 的 LUKS2 容器，完成打开、`mkfs.ext4`、挂载、写文件、卸载、关闭、重开、读回，记录 `luksDump` 与 `status` 的关键字段（预期：Version 2、`aes-xts-plain64`、offset 16777216）。
-2. 多口令（需在虚拟机中完成）：用 `luksAddKey` 加第二个口令，分别用两个口令执行 `open --test-passphrase`；再用 `luksKillSlot` 销毁第二个槽，确认第一个口令仍可打开（预期：两条 test-passphrase 均成功，销毁后只剩一个）。
-3. header 备份与恢复（需在虚拟机中完成）：`luksHeaderBackup` 后在副本上前 16 MiB 清零，确认 `luksDump` 失败；用 `luksHeaderRestore` 恢复并再次 dump，说明 header 与数据区各自的作用（预期：清零后报无效 LUKS，恢复后正常）。
-4. 口令错配（需在虚拟机中完成）：故意用错误口令执行 `open --test-passphrase`，记录退出码与报错；再解释为什么「口令错」和「header 坏」的报错不同。
+1. 容器全流程（可实机；只在 /tmp 下建容器文件）：按正文在 `/tmp/lab22` 建 64 MiB 的 LUKS2 容器，完成打开、`mkfs.ext4`、挂载、写文件、卸载、关闭、重开、读回，记录 `luksDump` 与 `status` 的关键字段（预期：Version 2、`aes-xts-plain64`、offset 16777216）。
+2. 多口令（可实机；只在 /tmp 下建容器文件）：用 `luksAddKey` 加第二个口令，分别用两个口令执行 `open --test-passphrase`；再用 `luksKillSlot` 销毁第二个槽，确认第一个口令仍可打开（预期：两条 test-passphrase 均成功，销毁后只剩一个）。
+3. header 备份与恢复（可实机；只在 /tmp 下建容器文件）：`luksHeaderBackup` 后在副本上前 16 MiB 清零，确认 `luksDump` 失败；用 `luksHeaderRestore` 恢复并再次 dump，说明 header 与数据区各自的作用（预期：清零后报无效 LUKS，恢复后正常）。
+4. 口令错配（可实机；只在 /tmp 下建容器文件）：故意用错误口令执行 `open --test-passphrase`，记录退出码与报错；再解释为什么「口令错」和「header 坏」的报错不同。
 5. crypttab 设计题：为一个非根数据盘写出一条 `crypttab` 条目（UUID、`none`、`discard`），说明开机时会提示什么、`systemctl status systemd-cryptsetup@<名>.service` 能看出什么；再回答根分区加密还需要改哪个文件（提示：mkinitcpio 的 HOOKS）。
 6. 边界判断题：分别回答「LUKS 能否检测密文被篡改」「全盘加密能否防住已登录的攻击者」「header 备份应该放在哪」「开了 discard 会泄露什么」，各用一句话说明理由。
 

@@ -67,7 +67,7 @@ PATH 的四个事故多发点：
 
 ## shell 启动文件：登录与非登录
 
-shell 启动时读哪些文件，取决于两个正交的维度：**登录 shell**（`bash --login`、开机文本登录、显式配置为 login 的终端）与**交互 shell**（你在敲命令的终端；图形终端默认多为交互非登录）。bash 的完整顺序，全部在本机实测过：
+shell 启动时读哪些文件，取决于两个正交的维度：**登录 shell**（`bash --login`、开机文本登录、显式配置为 login 的终端）与**交互 shell**（你在敲命令的终端；图形终端默认多为交互非登录）。bash 的完整顺序，全部在本书验证环境中实测过：
 
 - **登录 shell**（`bash --login`、开机文本登录、显式配置为 login 的终端；图形终端默认多为交互非登录）：先读 `/etc/profile`（系统级，里面会向 PATH 追加 `/usr/local/sbin` 等目录并加载 `/etc/profile.d/*.sh`），再按顺序读**第一个存在**的 `~/.bash_profile`、`~/.bash_login`、`~/.profile`。Arch 的 skel 模板让 `~/.bash_profile` 的有效内容只有一行 `[[ -f ~/.bashrc ]] && . ~/.bashrc`——所以登录与非登录最终汇合到 `~/.bashrc`。
 - **交互非登录 shell**：先读 `/etc/bash.bashrc`，再读 `~/.bashrc`。实测对照（`HOME` 指向空目录，隔离个人配置）：

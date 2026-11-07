@@ -31,7 +31,7 @@ uname -r # 只输出内核版本号
 cat /etc/os-release # 发行版自我标识
 ```
 
-`uname -r` 描述内核版本；发行版内核包的 release 字符串通常带厂商/发行版标识，但同一个内核也可以运行在不同发行版上，发行版的差别都在用户空间。`/etc/os-release` 是发行版用来给自己贴标签的文件，脚本判断系统类型时读的就是它。本机实跑结果如下：
+`uname -r` 描述内核版本；发行版内核包的 release 字符串通常带厂商/发行版标识，但同一个内核也可以运行在不同发行版上，发行版的差别都在用户空间。`/etc/os-release` 是发行版用来给自己贴标签的文件，脚本判断系统类型时读的就是它。本书验证环境的实跑结果如下：
 
 ```text
 $ uname -r
@@ -116,7 +116,7 @@ Linux 桌面完全是用户空间的一层，内核并不知道你用的是 GNOM
 
 **常见误判**（每一条都能在真实机器上验证）：
 
-1. 把 `uname -r` 的输出当成发行版版本。它只是内核版本；发行版版本看 `/etc/os-release` 的 `VERSION_ID`。
+1. 把 `uname -r` 的输出当成发行版版本。它只是内核版本；**固定版本**发行版（Debian、Fedora 等）的版本看 `/etc/os-release` 的 `VERSION_ID`，而 Arch 是滚动发行版，`/etc/os-release` 里**没有** `VERSION_ID`，只有 `BUILD_ID=rolling`。判断 Arch 当前状态用 `PRETTY_NAME`、`BUILD_ID` 与 `uname -r`/`pacman -Q linux`；`/etc/arch-release` 文件存在本身也是判据。
 2. 跨发行版照抄包管理命令。`apt install`、`dnf install`、`pacman -S` 解决的是同一件事，但包名、仓库与升级语义不同。
 3. 在滚动发行版上「攒着不升级」，一次性跨几个月升级。滚动版的风险随间隔增大，正确做法是小步、常升级、先读公告（见第 52 章）。
 4. 在一个发行版里混装另一发行版的包管理器或第三方二进制包。短期能跑，长期会出现文件所有权冲突；排查入口是「哪些文件不属于本发行版的包」。
@@ -127,7 +127,8 @@ Linux 桌面完全是用户空间的一层，内核并不知道你用的是 GNOM
 ```bash
 # 一次确认「内核 / 发行版 / 包归属」三件事
 uname -r
-grep -E '^(NAME|VERSION_ID|PRETTY_NAME)=' /etc/os-release
+grep -E '^(NAME|VERSION_ID|BUILD_ID|PRETTY_NAME)=' /etc/os-release # Arch 没有 VERSION_ID，只有 BUILD_ID=rolling
+ls /etc/arch-release # 存在（通常为空文件）即表明是 Arch
 command -v apt dnf pacman zypper 2>/dev/null   # 只打印存在的包管理器
 ```
 

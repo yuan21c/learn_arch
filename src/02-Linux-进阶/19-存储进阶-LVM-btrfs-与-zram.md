@@ -10,7 +10,7 @@
 第 18 章的三层（PV/VG/LV）在扩容时的顺序是**自下而上补空间、自上而下扩容量**：VG 满了先给它加 PV，再扩 LV，最后扩文件系统。
 
 ```bash
-# 需在虚拟机中完成，新磁盘 /dev/vdb
+# 需要第二块磁盘（新盘 /dev/vdb）；没有就只读命令与输出解释
 sudo pvcreate /dev/vdb # 建物理卷
 sudo vgextend vg0 /dev/vdb # 最常用：加一块新 PV；也可 pvresize、换更大 PV 或回收空间
 sudo lvextend -L +10G /dev/vg0/data # 逻辑卷加 10G
@@ -27,7 +27,7 @@ sudo resize2fs /dev/vg0/data # ext4 随之扩大
 同一块盘装过别的系统时，旧文件系统签名会留在分区头，`mkfs` 可能认错类型或报警。先分清两种目标：**整盘重做分区**（会一并清掉分区表）与**只清某个分区的旧签名**（保留分区布局）。
 
 ```bash
-# 需在虚拟机中完成，假设 /dev/vdb 是整块空盘或确认可丢弃的盘
+# 需要第二块磁盘，且必须是空盘或确认可丢弃
 lsblk -f /dev/vdb # 先看清盘上有没有分区、各分区 FSTYPE
 sudo sfdisk -d /dev/vdb > vdb.layout # 备份分区表布局（重建依据）
 sudo wipefs /dev/vdb # 只读：列出整盘上的签名
@@ -53,7 +53,7 @@ sudo wipefs -a /dev/vdb1 # 只清该分区签名，分区表不变
 第 18 章的「先备份」只是第一步，闭环是：**校验 → 重挂验证 → 出错可回退**。
 
 ```bash
-# 需在虚拟机中完成
+# 会改写块设备：只用可丢弃的磁盘或快照，不要在数据盘上照抄
 sudo findmnt --verify # 校验 /etc/fstab 全部条目（语法/设备/选项）
 sudo cp /etc/fstab /etc/fstab.bak
 # 改 fstab 后：先卸载再让 mount -a 全新挂一遍，才是真实验证
@@ -69,7 +69,7 @@ findmnt /mnt/lab13 # 预期：挂载点出现在输出中
 btrfs 把「子卷」当作可独立挂载/快照的管理单元，第 35 章的安装可选它做根文件系统：
 
 ```bash
-# 需在虚拟机中完成
+# 会改写块设备：只用可丢弃的磁盘或快照，不要在数据盘上照抄
 sudo mkfs.btrfs /dev/vdb1
 sudo mount /dev/vdb1 /mnt
 sudo btrfs subvolume create /mnt/@ # 根子卷
@@ -85,7 +85,7 @@ sudo mount -o subvol=@,compress=zstd /dev/vdb1 /mnt # 挂指定子卷
 ext4 上 `fallocate` 一把梭的 swapfile 不能原样搬到 btrfs：`swapon` 的拒绝条件是**无洞（完全预分配）+ NODATACOW + 单一 data profile**，不是 fallocate 本身不可用。btrfs-progs ≥ 6.1 推荐直接用 `sudo btrfs filesystem mkswapfile --size 2G /swapfile`（再 `sudo swapon /swapfile`）；手工路线则是先关 COW、用非 COW 方式占空间：
 
 ```bash
-# 需在虚拟机中完成，btrfs 文件系统上
+# 会改写子卷与挂载表：只用可丢弃的磁盘或快照；btrfs 文件系统上
 sudo btrfs filesystem mkswapfile --size 2G /swapfile # 首选：一步创建无洞、NODATACOW 的 swapfile
 sudo swapon /swapfile
 # 手工路线（旧版 btrfs-progs）：
@@ -96,7 +96,7 @@ sudo chmod 600 /swapfile
 sudo mkswap /swapfile && sudo swapon /swapfile
 ```
 
-含活跃 swapfile 的子卷不可快照；`balance`/`scrub` 会跳过相关 block group。文件还不能被压缩（`compress` 会破坏 swap 语义）；休眠到 swapfile 的完整步骤（含 `resume_offset`）见第 88 章休眠小节。是否接受 0644 的 swapfile 权限因版本而异，`chmod 600` 是无争议做法。
+含活跃 swapfile 的子卷不可快照；`balance`/`scrub` 会跳过相关 block group。文件还不能被压缩（`compress` 会破坏 swap 语义）；休眠到 swapfile 的完整步骤（含 `resume_offset`）见第 93 章休眠小节。是否接受 0644 的 swapfile 权限因版本而异，`chmod 600` 是无争议做法。
 
 ## zram：压缩内存交换
 
@@ -153,11 +153,11 @@ swapon --show # 预期看到 /dev/zram0
 
 ## 练习
 
-1. 在 VM 的第二块盘上走一遍 LVM 扩容链（PV → VG → LV → 文件系统），每步后 `pvs`/`vgs`/`lvs`/`df -h` 记录变化（需在虚拟机中完成；预期：`df -h` 最终显示扩大后的容量）。
-2. 用 `wipefs /dev/vdb` 观察签名列表，回答「`-a` 会清掉哪些、不会清掉什么」（需在虚拟机中完成；预期：能说出签名与数据区的区别）。
-3. 制造一次 fstab 验证闭环：写条目 → `findmnt --verify` → `umount` → `mount -a` → `findmnt`（需在虚拟机中完成；预期：每步输出可解释）。
-4. 建 btrfs 子卷 `@test` 并以 `subvol=@test,compress=zstd` 挂载，`findmnt -o OPTIONS` 确认选项（需在虚拟机中完成；预期：OPTIONS 含 subvol 与 compress）。
-5. 在 btrfs 上造 swapfile 并 `swapon --show` 验证，解释 `swapon` 的拒绝条件（为什么对默认 CoW 文件不能直接 `fallocate`）（需在虚拟机中完成；预期：`swapon --show` 列出该文件）。
+1. 在第二块盘上走一遍 LVM 扩容链（PV → VG → LV → 文件系统），每步后 `pvs`/`vgs`/`lvs`/`df -h` 记录变化（需要第二块磁盘；没有就只读命令与输出解释。预期：`df -h` 最终显示扩大后的容量）。
+2. 用 `wipefs /dev/vdb` 观察签名列表，回答「`-a` 会清掉哪些、不会清掉什么」（会改写块设备签名：只用可丢弃的磁盘或快照；预期：能说出签名与数据区的区别）。
+3. 制造一次 fstab 验证闭环：写条目 → `findmnt --verify` → `umount` → `mount -a` → `findmnt`（会改挂载表：只用可丢弃的磁盘或快照；预期：每步输出可解释）。
+4. 建 btrfs 子卷 `@test` 并以 `subvol=@test,compress=zstd` 挂载，`findmnt -o OPTIONS` 确认选项（会改子卷与挂载表：只用可丢弃的磁盘或快照；预期：OPTIONS 含 subvol 与 compress）。
+5. 在 btrfs 上造 swapfile 并 `swapon --show` 验证，解释 `swapon` 的拒绝条件（为什么对默认 CoW 文件不能直接 `fallocate`）（会改写 swap 配置：只用可丢弃的磁盘或快照；预期：`swapon --show` 列出该文件）。
 6. 阅读题：解释 NoCOW 为什么是数据库文件与 swapfile 的前置条件。
 
 ## 自检
