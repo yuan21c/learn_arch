@@ -59,7 +59,7 @@ TrustedUserCAKeys /etc/ssh/ca.pub
 
 之后任何由该 CA 签发、principal 与目标用户名匹配、且在有效期内的证书都能登录。要把 principal 与系统用户解耦，再加 `AuthorizedPrincipalsFile`（列出该用户接受哪些 principal）。证书登录与 `authorized_keys` 可以并存，迁移期两者都开，稳定后再关掉后者。
 
-**可复现的端到端实验**：在 127.0.0.1 的 2200 端口起一个临时 sshd，不碰系统 sshd：
+**可复现的端到端实验**：在 `127.0.0.1:2200` 起一个临时 sshd，不碰系统 sshd。这里的 `2200` 只供本机回环的一次性测试使用；它不是第 24/76 章使用的 `2222` 配置示例，更不是远程服务器的默认端口：
 
 ```bash
 # 把 y2c 换成你的用户名

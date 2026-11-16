@@ -70,20 +70,20 @@ veritysetup verify /tmp/vdata.img /tmp/vhash.img "$(grep 'Root hash' /tmp/verity
 ## 设备、恶意软件与流量验证
 
 - **USBGuard**：设备白名单，防「插一个恶意 USB」。**默认全拒绝**：规则文件里没有的设备一律被 block，所以启用顺序错了会当场失去键盘鼠标。
-  **动手前必读**：先准备第二个输入通道——同一局域网的 SSH 会话，或另一把有线键盘/串口控制台；并确认 `/etc/usbguard/rules.conf` 里当前键鼠都带 `allow`。若启动后发现键鼠失灵，在另一终端执行 `sudo systemctl stop usbguard` 即可恢复，再回来修规则。
+  **动手前必读**：先准备第二个输入通道——同一局域网的 SSH 会话，或另一把有线键盘/串口控制台；并确认 `/etc/usbguard/rules.conf` 里当前键鼠都带 `allow`。守护进程默认只允许 root 通过 IPC 管理设备。若键鼠被 block，单独执行 `systemctl stop usbguard` 不会可靠地恢复设备授权（`RestoreControllerDeviceState` 默认是 `false`）；应通过第二通道查询被阻止设备的规则 ID，临时执行 `sudo usbguard allow-device <id>`，或修正规则后重启服务。`--permanent` 可将 allow 决定写入策略，使用前确认规则范围。
 
   ```bash
   sudo pacman -S usbguard
   sudo usbguard generate-policy > /tmp/usb.rules # ① 生成当前设备策略
   grep -Ei 'keyboard|mouse|kbd|hid' /tmp/usb.rules # ② 审阅：当前键鼠必须在 allow 列表里
-  sudo usbguard list-devices # ③ 对照每个设备的设备名与状态
-  sudo install -m 0600 -o root -g root /tmp/usb.rules /etc/usbguard/rules.conf # ④ 规则落盘
-  sudo systemctl start usbguard # ⑤ 先 start，不动键盘鼠标试一试
-  sudo usbguard list-devices | grep -i blocked # ⑥ 预期：当前键鼠不在 blocked 列表
+  sudo install -m 0600 -o root -g root /tmp/usb.rules /etc/usbguard/rules.conf # ③ 规则落盘
+  sudo systemctl start usbguard # ④ 确认第二通道可用、规则审阅无误后再启动
+  sudo usbguard list-devices # ⑤ 守护进程启动后查看设备与规则 ID
+  sudo usbguard list-devices -b # ⑥ 只列出被阻止设备；确认当前键鼠未被阻止
   sudo systemctl enable usbguard # ⑦ 确认键鼠可用后再设开机自启
   ```
 
-  不要用 `enable --now` 一步到位：它在规则尚未安装时就会启动守护进程，默认拒绝策略会立刻封锁当前输入设备。若 `generate-policy` 的输出里没有键盘（远程或纯串口机器常见），先手工加一条 `allow` 规则再继续。
+  不要用 `enable --now` 一步到位：先安装并审阅规则，再启动和验证设备，最后才设开机自启。若 `generate-policy` 的输出里没有键盘（远程或纯串口机器常见），先手工补充精确的 `allow` 规则再继续；不要用宽泛规则放行所有 USB 设备。
 - **ClamAV**：恶意软件扫描，靠签名库；`sudo freshclam` 更新，`clamscan -r /tmp` 扫描。它不是 EDR，不能替代行为监控。
 - **nmap**：从外部视角看自己开了哪些端口。只对自有主机使用：
   ```bash

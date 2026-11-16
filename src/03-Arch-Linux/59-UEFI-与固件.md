@@ -55,12 +55,14 @@ efibootmgr -v
 │   │   └── grubx64.efi
 │   └── systemd/
 │       ├── systemd-bootx64.efi
-│       └── loader/
-│           ├── loader.conf
-│           └── entries/*.conf
+├── loader/
+│   ├── loader.conf
+│   └── entries/*.conf
 ├── vmlinuz-linux
 └── initramfs-linux.img
 ```
+
+systemd-boot 的 EFI 程序位于 `EFI/systemd/`；它读取的 `loader/loader.conf` 与 `loader/entries/*.conf` 则位于 ESP 根目录下的 `loader/`，两者不是同一目录。
 
 `EFI/BOOT/BOOTX64.EFI` 是 UEFI 规范的可移动设备默认路径：当 NVRAM 条目全部失效或机器换盘时，固件会尝试它。把主引导器复制到该路径作为保险很常见；本章与第 61 章涉及 Secure Boot 时，这个文件也要纳入签名范围。
 
@@ -116,7 +118,7 @@ ls -R /boot/EFI | head -n 30
 fwupdmgr get-devices
 ```
 
-判读：`/sys/firmware/efi` 判断模式；`BootCurrent` 与 `BootOrder` 判断当前与顺序；ESP 挂载与剩余空间判断能否写入；`fwupdmgr get-devices` 只枚举设备，不更新。回滚：改 NVRAM 前保存 `efibootmgr -v`，用 `efibootmgr -o` 恢复顺序、`-b` 删除误建条目；ESP 文件改动前复制整个 `EFI` 目录；固件更新失败按厂商恢复流程处理，通常需要 U 盘盲刷或服务网点。
+判读：`/sys/firmware/efi` 判断模式；`BootCurrent` 与 `BootOrder` 判断当前与顺序；ESP 挂载与剩余空间判断能否写入；`fwupdmgr get-devices` 只枚举设备，不更新。回滚：改 NVRAM 前保存 `efibootmgr -v`，用 `efibootmgr -o` 恢复顺序；删除误建条目要用 `efibootmgr -b <编号> -B`（`-b` 选择条目，`-B` 才执行删除）。ESP 文件改动前复制整个 `EFI` 目录；固件更新失败按厂商恢复流程处理，通常需要 U 盘盲刷或服务网点。
 
 ## 取舍边界
 

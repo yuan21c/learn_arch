@@ -10,9 +10,10 @@
 一条授权行的骨架是「**谁 在哪台机器 =（以谁的身份）标签: 命令**」：
 
 ```text
-# /etc/sudoers 片段
+# 授权语法示例；Arch 出厂的 %wheel 行均被注释，按实际策略启用相应的一项
 root ALL=(ALL:ALL) ALL
-%wheel ALL=(ALL:ALL) ALL
+# %wheel ALL=(ALL:ALL) ALL
+# %wheel ALL=(ALL:ALL) NOPASSWD: ALL
 ```
 
 | 段 | 含义 | 取值示例 |
@@ -82,7 +83,7 @@ journalctl _COMM=sudo -o cat | tail
 
 审计三件套建议常开：`journalctl -t sudo` 查会话、`sudo -l` 定期导出授权清单、drop-in 文件纳入版本管理。出了安全事故，这三样能回答「谁能提权、当时执行了什么」。另注意 `sudo` 默认不记录按键、只记录命令行；对高敏机器可配 `Defaults log_input,log_output` 留存完整会话（以 Wiki 为准）。
 
-> **危险**：改 sudoers 的标准流程——保留一个已登录会话不退出 → `visudo`/`visudo -f` 修改 → `visudo -c` 校验 → 新会话 `sudo -l` 验证 → 收工。直接 `vim /etc/sudoers` 改坏一个字，所有 `sudo` 立刻失灵；这时靠已登录的 root 会话或 `su -` 兜底，而不是重装系统。
+> **危险**：改 sudoers 的标准流程——先确认回退通道并保留一个可用的特权会话 → `visudo`/`visudo -f` 修改 → `visudo -c` 校验 → 新会话 `sudo -l` 验证。修改前可用 `sudo passwd -S root` 检查 root 账户状态；`su -` 只有在 root 账户可登录且有可用密码时才可作为回退，root 锁定时不能依赖它。若没有其他特权会话，准备好 Live 环境并核对目标系统挂载路径，再用 `arch-chroot` 修复。不要直接用普通编辑器改 `/etc/sudoers`。
 
 ## 与第 38 章的分工
 
@@ -100,10 +101,20 @@ journalctl _COMM=sudo -o cat | tail
 **最小实验（先校验、不安装）**：
 
 ```bash
-printf '%wheel ALL=(root) /usr/bin/id\n' > /tmp/lab9.sudoers
+# 注意：printf 的 % 在引号内仍会被当作格式符，必须写成 %%；
+# 或改用 here-doc（单引号 EOF 内不转义）：cat > /tmp/lab9.sudoers <<'EOF'
+# %wheel ALL=(root) /usr/bin/id
+# EOF
+printf '%%wheel ALL=(root) /usr/bin/id\n' > /tmp/lab9.sudoers
 sudo visudo -c -f /tmp/lab9.sudoers   # 只做语法检查，不写入 /etc/sudoers.d
+```
+
+**重要**：`visudo -c` 对**空文件也返回 `parsed OK`**。校验前先用 `wc -c` 或 `cat` 确认文件非空，不要只凭 `parsed OK` 就认为规则已生效。`sudo -n -l` 与 `sudo -l -U "$USER"` 才是确认当前身份实际规则的手段。
+
+```bash
 sudo -n -l                          # 当前身份的实际规则
 sudo -l -U "$USER"                  # 指定用户的规则
+wc -c /tmp/lab9.sudoers             # 确认文件非空（大于 0 字节）
 ```
 
 确认无误后再用 `sudo visudo -f /etc/sudoers.d/90-lab9` 安装同一条规则；实验结束删除该文件并再跑一次 `sudo visudo -c`。

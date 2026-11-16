@@ -67,7 +67,7 @@ sudo mount -o subvol=@ /dev/vda2 /mnt
 sudo mount --mkdir /dev/vda1 /mnt/boot
 ```
 
-挂完后必须用 `findmnt /mnt`、`findmnt /mnt/boot` 复核：根与 ESP 是两个独立挂载点，且来源设备正确。挂错根却继续 chroot，后面的修复会写到错误的分区。
+挂完后分别运行 `findmnt /mnt` 与 `findmnt /mnt/boot` 复核：根与 ESP 是两个独立挂载点，且来源设备正确。若目标系统把 ESP 挂载到 `/efi` 等其他位置，应改为检查对应目标。挂错根却继续 chroot，后面的修复会写到错误的分区。
 
 ## 第三步：进入目标系统
 
@@ -75,14 +75,17 @@ sudo mount --mkdir /dev/vda1 /mnt/boot
 sudo arch-chroot /mnt
 ```
 
-`arch-chroot` 会挂载 `/proc`、`/sys`、`/dev` 等必要文件系统，并切换根目录。若使用其他发行版的 Live 环境，需要手工 bind mount：
+`arch-chroot` 会挂载目标系统所需的临时 API 文件系统并切换根目录。若使用其他发行版的 Live 环境，优先使用该环境提供的同类工具；确实要手工 `chroot` 时，至少准备 `/proc`、`/sys`、`/dev`，并按需准备 `/run`：
 
 ```bash
-sudo mount --bind /dev /mnt/dev
-sudo mount --bind /proc /mnt/proc
-sudo mount --bind /sys /mnt/sys
-sudo chroot /mnt
+sudo mount -t proc proc /mnt/proc
+sudo mount -t sysfs sys /mnt/sys
+sudo mount --rbind /dev /mnt/dev
+sudo mount --rbind /run /mnt/run
+sudo chroot /mnt /bin/bash
 ```
+
+若要在 chroot 内写入 UEFI NVRAM，还须确认 Live 环境以 UEFI 启动且 `efivarfs` 已挂载；仅挂载 `/sys` 不会自动带入其下单独挂载的 `efivarfs`。手工挂载命令要按当前 Live 环境和实际挂载点核对。
 
 进入后先确认身份，不要急着改文件：
 
@@ -110,11 +113,16 @@ findmnt -R /mnt
 mkinitcpio -P
 ```
 
-**引导器**：GRUB 重装到 ESP，systemd-boot 重装并核对 entry。
+**引导器**：先确认目标系统正在使用的引导器及 ESP 挂载点，再选择对应的一条修复路径；不要把下面两种引导器命令连续当作一套流程执行。示例均假设 UEFI 下 ESP 挂载在 `/boot`，其他布局要相应调整。
 
+GRUB：
 ```bash
 grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
 grub-mkconfig -o /boot/grub/grub.cfg
+```
+
+systemd-boot：
+```bash
 bootctl install
 ```
 
@@ -136,11 +144,11 @@ pacman -Qkk bash
 ```bash
 exit
 sudo umount -R /mnt
-sudo cryptsetup close cryptroot # 若用过 LUKS
-sudo vgchange -an # 若用过 LVM
+sudo vgchange -an # 若 LVM 位于已解锁的 LUKS 容器内，先停用卷组
+sudo cryptsetup close cryptroot # 再关闭承载该卷组的 LUKS 映射
 ```
 
-`umount -R` 递归卸载，避免遗漏 bind mount；提示 `target is busy` 时用 `fuser -vm /mnt` 找到占用进程，先退出再卸载。数据未落盘就断电或直接重启，可能留下不一致的文件系统；必要时在 Live 环境对根分区做只读 `fsck`。
+`umount -R` 递归卸载，避免遗漏 bind mount；提示 `target is busy` 时用 `fuser -vm /mnt` 找到占用进程，先退出再卸载。上面的停用顺序适用于常见的「LUKS 映射上承载 LVM」布局；若层次相反，应按实际依赖关系先停用上层设备。数据未落盘就断电或直接重启，可能留下不一致的文件系统。只读检查要按文件系统选择工具，例如对未挂载的 ext2/3/4 使用 `e2fsck -fn`，对未挂载的 XFS 使用 `xfs_repair -n`；不要把通用 `fsck -n` 当成所有文件系统都具有相同语义的保证。
 
 ## 失败模式
 
@@ -159,7 +167,8 @@ sudo vgchange -an # 若用过 LVM
 
 ```bash
 lsblk -f
-findmnt /mnt /mnt/boot
+findmnt /mnt
+findmnt /mnt/boot
 blkid
 sudo arch-chroot /mnt pacman -Q 内核包名 # 非交互确认目标系统
 sudo arch-chroot /mnt cat /etc/fstab
@@ -181,7 +190,8 @@ sudo arch-chroot /mnt cat /etc/fstab
 - ESP 必须单独挂到 `/boot`，否则引导器写入位置错误。
 - `arch-chroot` 进入目标系统后，先确认 `/etc/os-release` 与包数据库，再动手修。
 - 常见修复是 fstab、initramfs、引导器、包数据库与密码；每步都要先备份。
-- 退出顺序是 `exit` → `umount -R` → 关闭 LUKS/LVM；`target is busy` 先找占用进程。
+- 退出顺序是 `exit` → `umount -R` → 按设备依赖关系停用 LVM/LUKS；常见 LUKS→LVM 布局先停用卷组再关闭映射。
+- 只读文件系统检查使用对应工具和选项；ext 文件系统可用 `e2fsck -fn`，XFS 可用 `xfs_repair -n`，均应先卸载。
 - 本章破坏性步骤未实测；只读检查与一次性虚拟机演练是安全等价路径。
 
 ## 练习

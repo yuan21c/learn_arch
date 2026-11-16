@@ -90,7 +90,7 @@ sudo cryptsetup luksKillSlot "$LOOP" 1 # 销毁 1 号 keyslot（先确认它不�
 vault UUID=50885dac-f517-46aa-9d0b-91923d1817c4 none luks,discard
 ```
 
-`none` 表示开机时交互式询问口令；也可以写密钥文件路径（如 `/etc/keys/vault.key`，权限必须严格）。`discard` 打开 TRIM 透传。systemd 会按 crypttab 生成 `systemd-cryptsetup@vault.service`，`systemctl start`/`status` 可单独调试。根分区加密还要在 initramfs 里带上 `cryptsetup` hook 并重建 initramfs，否则内核启动时根本没人解锁——这部分与第 30 章的启动链、第 58 章的 mkinitcpio 衔接。
+`none` 表示开机时交互式询问口令；也可以写密钥文件路径（如 `/etc/keys/vault.key`，权限必须严格）。`discard` 打开 TRIM 透传。systemd 会按 crypttab 生成 `systemd-cryptsetup@vault.service`，`systemctl start`/`status` 可单独调试。根分区加密还要让 initramfs 使用与早期用户空间匹配的 hook：mkinitcpio 的 systemd 路线用 `sd-encrypt`，BusyBox/udev 路线用 `encrypt`；不存在名为 `cryptsetup` 的 mkinitcpio hook。两种路线的内核参数也不同，按第 58、60 章配置并重建 initramfs。
 
 **header 备份。** 这是本章最重要的一条纪律。头部损坏时，即使口令正确、数据完好，容器也无法识别；man 页写得很直接：*If the header of a LUKS volume gets damaged, all data is permanently lost unless you have a header backup.* 备份与验证如下：
 
@@ -166,7 +166,7 @@ rm -rf /tmp/lab22
 - LUKS 三段：header、keyslot 区、数据区；口令只解开 keyslot 里的主密钥，数据始终用主密钥加密。
 - LUKS2 用 JSON 元数据与 Argon2id，默认 cipher 为 `aes-xts-plain64`，数据偏移约 16 MiB（实测确认）。
 - loop 文件是最安全的演练环境：`truncate` → `losetup` → `luksFormat` → `open` → `mkfs` → `mount`，删文件即回滚。
-- `luksAddKey`/`luksChangeKey`/`luksKillSlot` 管口令；`/etc/crypttab` 管开机解锁；initramfs 需带 `cryptsetup` hook。
+- `luksAddKey`/`luksChangeKey`/`luksKillSlot` 管口令；`/etc/crypttab` 管开机解锁；initramfs 需带与早期用户空间匹配的 hook：systemd 路线用 `sd-encrypt`，udev/BusyBox 路线用 `encrypt`；不存在名为 `cryptsetup` 的 mkinitcpio hook。
 - **header 必须备份并验证**：`luksHeaderBackup` 后用 `luksDump --header` 读一次；header 丢了，口令正确也救不回数据。
 - LUKS 提供机密性不提供完整性；TRIM、休眠、密钥文件的存放位置都会改变实际安全边界。
 

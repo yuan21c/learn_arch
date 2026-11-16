@@ -181,4 +181,4 @@ pacman -Qo "$(man -w pacman)" # 该手册由哪个包提供
 - [Main page](https://wiki.archlinux.org/title/Main_page)
 - [Help:Reading](https://wiki.archlinux.org/title/Help:Reading)
 - [Getting involved](https://wiki.archlinux.org/title/Getting_involved)
-- [Arch Wiki:Contributing](https://wiki.archlinux.org/title/Arch_Wiki:Contributing)
+- [ArchWiki:Contributing](https://wiki.archlinux.org/title/ArchWiki:Contributing)

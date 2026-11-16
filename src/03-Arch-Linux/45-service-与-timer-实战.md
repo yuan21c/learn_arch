@@ -3,7 +3,7 @@
 service 描述「运行什么」，timer 描述「什么时候运行」。把两者配成一对，就能用 systemd 替代 cron 做定期维护。本章以一个真实任务——每周清理 pacman 缓存——走完编写、启用、验证和排错的完整流程。
 
 > 本章目标：能独立编写 service 与 timer，正确启用定时任务，并用 systemd 自带工具验证时间表达式与执行结果。
-> 对应 Wiki：[systemd/Timers](https://wiki.archlinux.org/title/Systemd/Timers)、[systemd.service](https://wiki.archlinux.org/title/Systemd.service)、[systemd.timer](https://wiki.archlinux.org/title/Systemd.timer)
+> 对应 Wiki：[systemd/Timers](https://wiki.archlinux.org/title/Systemd/Timers)、[systemd.service 手册页](https://man.archlinux.org/man/systemd.service.5)、[systemd.timer 手册页](https://man.archlinux.org/man/systemd.timer.5)
 
 ## Unit 文件结构
 

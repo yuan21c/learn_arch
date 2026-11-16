@@ -12,11 +12,11 @@ license=('MIT')
 depends=() # 运行期依赖
 makedepends=() # 构建期依赖
 source=('hello.sh') # 与 PKGBUILD 放在同一目录的本地源文件
-sha256sums=('1338391f057fed0e3a77101fd0d6929b31bba37bbd2e2d0cb70c51413ea77a78')
+sha256sums=('替换为你本地 hello.sh 的实际校验和')
 package() { install -Dm755 "$srcdir/hello.sh" "$pkgdir/usr/bin/hello-arch"; }
 ```
 
-`source` 与 `sha256sums` 的元素个数必须相等：每个源文件对应一个校验和；只有 `source=()` 为空时才写 `sha256sums=()`。上面的哈希对应第 48 章 `hello.sh` 的原文，可用 `sha256sum hello.sh` 自行核对；发布包不得保留 `SKIP`（VCS/签名文件例外，见第 48 章）。
+`source` 与 `sha256sums` 的元素个数必须相等：每个源文件对应一个校验和；只有 `source=()` 为空时才写 `sha256sums=()`。**哈希随文件内容变化，再次构建前请用 `sha256sum hello.sh` 计算实际值并替换此处占位符；不要照抄他人的哈希值；发布包不得保留 `SKIP`（VCS/签名文件例外，见第 48 章）。**
 
 > 本章目标：能独立完成一次从 PKGBUILD 到 `.pkg.tar.zst` 的构建，并解释构建目录、依赖安装和安装产物的去向。
 > 对应 Wiki：[Makepkg](https://wiki.archlinux.org/title/Makepkg)、[Creating packages](https://wiki.archlinux.org/title/Creating_packages)
@@ -107,6 +107,8 @@ ls -la pkg/hello-arch/usr/bin/ # $pkgdir 的默认路径带包名
 
 组合使用：
 
+> **本机未实测**：`makepkg -si`、`pacman -U`、`pacman -Rns` 等系统变更命令请先在 `/tmp` 独立 `--dbpath/--config/--cachedir` 环境验证，不得直接在生产系统执行。
+
 ```bash
 makepkg -si # 装依赖、构建、安装
 makepkg -f # 重新构建，覆盖旧包
@@ -128,6 +130,8 @@ makepkg --printsrcinfo > .SRCINFO
 例如 `hello-arch-0.1.0-1-any.pkg.tar.zst`。`epoch` 同时写入包元数据并参与版本比较；当 `epoch>0` 时文件名会变成 `<pkgname>-<epoch>:<pkgver>-<pkgrel>-<arch>.pkg.tar.zst`（可用 `pacman -Sp fakeroot` 观察 `fakeroot-1:1.37.2-3-x86_64.pkg.tar.zst`）。拆分包会为每个子包各生成一个文件；启用调试符号时还会额外生成 `-debug` 包。
 
 安装与核对：
+
+> **本机未实测**：`pacman -U`、`pacman -Rns` 等系统变更命令请先在 `/tmp` 独立 `--dbpath/--config/--cachedir` 环境验证，不得直接在生产系统执行。
 
 ```bash
 sudo pacman -U ./hello-arch-0.1.0-1-any.pkg.tar.zst

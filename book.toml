@@ -1,11 +1,20 @@
 [book]
-title = "Arch Linux 系统学习手册"
+title = "Linux 与 Arch Linux 系统学习手册"
 authors = ["yuan21c"]
-language = "zh-CN"
+description = "从命令、文件、权限，到进程、存储、网络，再到 Arch Linux 的包管理、systemd、构建与排障"
 src = "src/"
+language = "zh-CN"
 
 [build]
-build-dir = "book"          # 输出到 book/ 目录
+build-dir = "book"
+create-missing = false
+use-default-preprocessors = true
+extra-watch-dirs = []
+
+[rust]
+edition = "2021"
 
 [output.html]
+preferred-dark-theme = "navy"
 default-theme = "navy"
+mathjax-support = true

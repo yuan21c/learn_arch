@@ -167,11 +167,11 @@ namcap PKGBUILD # 检查元数据与常见错误
 makepkg --printsrcinfo | head -n 20 # 生成并检查 .SRCINFO 内容
 makepkg -o # 只解压源码、执行 prepare，不编译
 makepkg -f # 完整构建，产物落在当前目录
-pacman -Qkp hello-arch-*.pkg.tar.zst # 读取产物元数据，不安装
+pacman -Qip hello-arch-*.pkg.tar.zst # 读取产物元数据：包名/版本/依赖（-Qlp 看文件清单，-Qkp 只核对文件是否存在）
 tar -tf hello-arch-*.pkg.tar.zst # 核对包内路径
 ```
 
-`bash -n` 能提前发现拼写与引号错误；`makepkg -o` 把「源码与补丁」和「编译」分开，失败时定位更快；`pacman -Qkp` 不安装就能确认包名、版本与依赖。回滚：构建失败删掉 `src/`、`pkg/` 与产物重来；包已安装则卸载并修正 PKGBUILD 后重建（**未实测**）。本章的 `makepkg -si` 安装步骤**未实测**，演练只到「构建 + 只读检查」。
+`bash -n` 能提前发现拼写与引号错误；`makepkg -o` 把「源码与补丁」和「编译」分开，失败时定位更快；`pacman -Qip` 不安装就能读取包名、版本与依赖（`-Qkp` 只核对文件是否存在，不输出元数据）。回滚：构建失败删掉 `src/`、`pkg/` 与产物重来；包已安装则卸载并修正 PKGBUILD 后重建（**未实测**）。本章的 `makepkg -si` 安装步骤**未实测**，演练只到「构建 + 只读检查」。
 
 ## 取舍边界
 

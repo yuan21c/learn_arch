@@ -1,6 +1,6 @@
 # 第 60 章 内核、模块与 initramfs
 
-内核不是一块不可拆的整体：它由内核镜像、可加载模块、固件与启动时生成的 initramfs 共同组成。升级内核只替换了镜像与模块目录，initramfs 要重建，正在使用的模块要等重启才换，DKMS 模块要重新编译。理解这四者的关系，才能解释「升级后无线没了」「新内核起不来」「模块加载参数不生效」这类问题。
+内核不是一块不可拆的整体：启动涉及内核镜像、可加载模块、固件与 initramfs。Arch 内核包安装或升级时通常会由 pacman hook 按 preset 重建 initramfs；正在运行的内核与模块要等重启才切换，DKMS 模块也须为新内核构建。自定义 preset、hook 失败或构建错误仍可能留下不匹配的镜像，升级后应检查 hook 与生成结果。
 
 > 本章目标：能区分内核包、模块目录、initramfs 与 DKMS 的职责；会用 `lsmod`、`modinfo`、`modprobe` 与 `/etc/modprobe.d` 管理模块；理解 `mkinitcpio` 的 `HOOKS`、`MODULES`、`FILES` 与 `COMPRESSION`；能读懂 `/proc/cmdline` 与 `sysctl` 的不同层级；知道哪些改动必须重建 initramfs 或重启。
 > 对应 Wiki：[Kernel](https://wiki.archlinux.org/title/Kernel)、[Kernel modules](https://wiki.archlinux.org/title/Kernel_module)、[Mkinitcpio](https://wiki.archlinux.org/title/Mkinitcpio)、[Dynamic Kernel Module Support](https://wiki.archlinux.org/title/Dynamic_Kernel_Module_Support)
@@ -14,7 +14,7 @@
 | initramfs | `/boot/initramfs-linux.img` | `mkinitcpio -P` | 你（或包钩子） |
 | 启动参数 | `/proc/cmdline` | 改引导器配置并重启 | GRUB/systemd-boot |
 
-升级内核包会替换镜像和模块目录，但不会自动把新模块塞进已有的 initramfs；`mkinitcpio` 的 pacman hook 通常会在内核包安装后重建，但改过 `HOOKS` 或使用自定义 preset 时要自己确认。
+升级内核包会替换镜像和模块目录，Arch 的 pacman hook 通常会按 preset 重建对应的 initramfs；若 hook 失败、自定义 preset 未覆盖目标镜像，或生成过程报错，就需要先修复再继续启动。改过 `HOOKS` 或使用自定义 preset 时应核对具体生成结果。
 
 ## 模块：加载、查询与参数
 
@@ -59,10 +59,13 @@ grep -E '^(HOOKS|MODULES|FILES|COMPRESSION)=' /etc/mkinitcpio.conf
 ls /etc/mkinitcpio.d/
 ```
 
-- `HOOKS`：按顺序执行的脚本，常见有 `base`、`udev`、`autodetect`、`microcode`、`modconf`、`block`、`filesystems`、`fsck`、`keyboard`、`sd-encrypt` 等。顺序影响行为，不要随意调换。
+- `HOOKS`：描述 initramfs 的构建与早期启动步骤，顺序影响行为。systemd 早期用户空间使用 `systemd`/`sd-encrypt`；BusyBox 早期用户空间使用 `udev`/`encrypt`，不要把两套加密 hook 混用。具体顺序以当前 mkinitcpio 文档和实际设备拓扑为准。
+- `autodetect`：在**构建 initramfs 时**按构建环境的硬件筛选模块，不是启动时对任意目标硬件重新探测；若镜像要在不同硬件上启动，应评估其模块是否被裁掉。
 - `MODULES`：强制加入的模块，例如存储控制器或文件系统驱动。
 - `FILES`：把额外文件打进 initramfs，例如固件或密钥。
 - `COMPRESSION`：压缩算法，影响体积与解压时间。
+
+systemd initramfs 可在支持该参数的 systemd 版本（258 及以上）中，用一次性内核参数 `rd.systemd.break=pre-mount` 或 `rd.systemd.break=pre-switch-root` 暂停启动并进入调试 shell；退出 shell 后启动会继续。当前 mkinitcpio 官方内置 hook 列表没有名为 `break` 的 hook，不要把它直接加入 `HOOKS`。临时调试结束后不要把参数留在持久化启动项中；其他版本或 BusyBox initramfs 应先查对应版本的官方调试方式。
 
 改了 `HOOKS`、`MODULES`、加密、根文件系统或微码后必须重建：
 
@@ -75,13 +78,14 @@ sudo mkinitcpio -P
 ## 启动参数与 sysctl 不是一回事
 
 - **内核启动参数**：写在 GRUB 的 `GRUB_CMDLINE_LINUX_DEFAULT` 或 systemd-boot 的 entry 里，经 `/proc/cmdline` 读取，只在启动时生效，例如 `root=`、`rw`、`nomodeset`、`loglevel=7`。
-- **sysctl**：运行时内核参数，写在 `/etc/sysctl.d/*.conf`，用 `sysctl -p` 或重启生效，例如 `net.ipv4.ip_forward`、`vm.swappiness`。
+- **sysctl**：运行时内核参数，写在 `/etc/sysctl.d/*.conf`，由 `systemd-sysctl` 在启动时加载；要立即重载整套配置可用 `sudo sysctl --system`，例如 `net.ipv4.ip_forward`、`vm.swappiness`。`sysctl -p` 默认读 `/etc/sysctl.conf`，不会自动遍历 `/etc/sysctl.d/`。
 - **模块参数**：`/etc/modprobe.d/*.conf` 的 `options`，在模块加载时生效。
 
 三者层级不同：启动参数最早、模块参数随加载、sysctl 在用户空间可改。把 `vm.swappiness` 写进内核命令行不会生效；把 `root=` 写进 sysctl 更不可能。
 
 ## 失败模式
 
+- **把内核升级当成自动回退保障**：常规升级不保证保留旧内核镜像和可用菜单项；需要回退时，预先安装并验证独立内核及其 initramfs/引导项。
 - **升级内核不重启就判断模块正常**：`uname -r` 仍是旧内核，新模块目录未被使用；要重启后再验证。
 - **改 `HOOKS` 不重建 initramfs**：新 hook 没进镜像，启动时缺驱动或缺少解锁步骤。
 - **黑名单写成文件名**：`blacklist iwlwifi.ko` 不会生效，应写模块名 `iwlwifi`。
@@ -103,12 +107,12 @@ dkms status
 modinfo -p 模块名 | head
 ```
 
-`lsinitcpio` 列出 initramfs 内容，确认新 hook/模块是否真的进去；`/proc/cmdline` 是本次启动的真实参数，不以配置文件为准；`dkms status` 显示每个内核版本的构建结果。回滚：内核升级后起不来，可在引导菜单选旧内核（若保留）；initramfs 改坏时用 Live 环境挂载后恢复 `.bak` 或按原配置重建（**未实测**）；模块参数改错先注释掉对应行并重启。本章的 `mkinitcpio -P`、`modprobe` 写操作、DKMS 重建与重启均**未实测**；只读命令可安全复现。
+`lsinitcpio` 列出 initramfs 内容，确认新 hook/模块是否真的进去；`/proc/cmdline` 是本次启动的真实参数，不以配置文件为准；`dkms status` 显示每个内核版本的构建结果。回滚：只有预先保留且配置、验证过的备用内核/引导项才能直接从菜单选择；否则用 Live 环境修复。initramfs 改坏时可从 Live 环境挂载后恢复 `.bak` 或按原配置重建（**未实测**）；模块参数改错先注释掉对应行并重启。本章的 `mkinitcpio -P`、`modprobe` 写操作、DKMS 重建与重启均**未实测**；只读命令可安全复现。
 
 ## 取舍边界
 
 - **树内模块 vs DKMS**：能用树内模块就不要引入 DKMS；DKMS 灵活但增加每次内核升级的失败面。
-- **`autodetect` vs 固定 `MODULES`**：autodetect 按当前硬件精简 initramfs，换硬件可能缺驱动；固定模块更稳但体积大。
+- **`autodetect` vs 固定 `MODULES`**：autodetect 按构建时硬件精简 initramfs，换硬件可能缺驱动；固定模块更稳但体积大。
 - **主内核 vs LTS**：主线新特性多，LTS 更保守；关键机器可同时安装，引导菜单留退路。
 - **独立 initramfs vs UKI**：独立文件便于替换与排查；UKI 集成度高，适合 Secure Boot 统一签名。
 - **压缩算法 vs 启动速度**：更高压缩比省空间但解压更慢；嵌入式或小 ESP 才需要极致压缩。
@@ -146,6 +150,7 @@ modinfo -p 模块名 | head
 - [Kernel](https://wiki.archlinux.org/title/Kernel)
 - [Kernel modules](https://wiki.archlinux.org/title/Kernel_module)
 - [Mkinitcpio](https://wiki.archlinux.org/title/Mkinitcpio)
+- [systemd-debug-generator(8)](https://man.archlinux.org/man/systemd-debug-generator.8.en)
 - [Dynamic Kernel Module Support](https://wiki.archlinux.org/title/Dynamic_Kernel_Module_Support)
 - 上一章：[第 59 章 UEFI 与固件](59-UEFI-与固件.md)
 - 下一章：[第 61 章 Secure Boot、签名、shim 与 MOK](61-Secure-Boot-签名-shim-与-MOK.md)
