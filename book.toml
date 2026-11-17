@@ -19,5 +19,6 @@ preferred-dark-theme = "ayu"
 default-theme = "ayu"
 mathjax-support = true
 additional-css = ["custom.css"]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
 
 [preprocessor.mermaid]
