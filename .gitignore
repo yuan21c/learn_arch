@@ -5,6 +5,11 @@
 .trae/
 docs/
 
+# 手册辅助脚本（中间文件，不入库）
+scripts/check_book.py
+scripts/check_refs.py
+scripts/renumber_book.py
+
 # ============================================
 # mdBook 构建产物
 # ============================================
