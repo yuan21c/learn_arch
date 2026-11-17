@@ -1,0 +1,47 @@
+@font-face {
+    font-family: "FZSSK";
+    src: url("fonts/FZSSK.TTF");
+}
+
+@font-face {
+    font-family: "MesloLGS-LXGW";
+    src: url("fonts/MesloLGS-LXGW-WenKai-Regular.ttf");
+}
+
+@font-face {
+    font-family: "MesloLGS NF";
+    src: url("fonts/MesloLGS NF Regular.ttf");
+}
+
+@font-face {
+    font-family: "FZXBS";
+    src: url("fonts/FZXBS_GBK.ttf");
+}
+
+html,
+body {
+    font-family: "Times New Roman", "FZSSK", sans-serif !important;
+}
+
+:root {
+    font-size: 100%;
+}
+
+.sidebar {
+    font-size: 0.75em;
+}
+
+code {
+    font-family: "MesloLGS NF", "FZSSK", "MesloLGS-LXGW", 'Courier New', Courier, monospace !important;
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family: "FZXBS"
+}
+
+.content main {
+    max-width: 1200px !important;
+}

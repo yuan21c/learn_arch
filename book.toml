@@ -15,6 +15,7 @@ extra-watch-dirs = []
 edition = "2021"
 
 [output.html]
-preferred-dark-theme = "navy"
-default-theme = "navy"
+preferred-dark-theme = "ayu"
+default-theme = "ayu"
 mathjax-support = true
+additional-css = ["custom.css"]

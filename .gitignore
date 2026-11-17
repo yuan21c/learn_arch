@@ -91,6 +91,8 @@ claude-context.md
 .github-copilot/
 copilot-chat-*.md
 
+.kilo/
+
 .aider*
 
 .continue/
