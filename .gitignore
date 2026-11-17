@@ -4,7 +4,6 @@
 .superpowers/
 .trae/
 docs/
-scripts/
 
 # ============================================
 # mdBook 构建产物
