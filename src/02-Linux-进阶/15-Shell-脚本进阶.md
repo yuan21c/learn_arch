@@ -5,7 +5,21 @@
 > 本章目标：会排查 CRLF 行尾问题；能用数组与 `shift`/`getopts` 组织输入；会用 `bash -n`/`bash -x` 调试并读懂 `128+N` 退出码；能用 `mktemp` + `trap` 写出安全的临时文件脚手架；知道 shellcheck 的用法。
 > 对应 Wiki：[Bash](https://wiki.archlinux.org/title/Bash)、[Command-line shell](https://wiki.archlinux.org/title/Command-line_shell)
 
-## 第一坑：CRLF 行尾
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `file` | 英文 file（文件）| 见第 3 章，识别文件类型 | 直接跟文件名 | file = file，看这个文件“到底是什么” |
+> | `dos2unix` | **dos** 到 **unix**（DOS 转 UNIX）| 转换行尾格式工具，Windows CRLF → Unix LF | 直接跟文件路径 | dos2unix = DOS 到 Unix，把行尾从 Windows 风格改成 Unix 风格 |
+> | `sed` | **s**tream **ed**itor（流编辑器）| 见第 4 章 | `-i` 就地修改、`s/\r$//` 去掉回车符 | sed = stream editor，流式编辑器 |
+> | `shift` | 英文 shift（移位）| shell 内置，丢掉前 N 个位置参数 | `shift N`，常配合 `OPTIND` | shift = shift，把参数列表“左移” N 位 |
+> | `getopts` | **get** **opts**（获取选项）| shell 内置，解析短选项 | `':'` 表示选项带参数，`OPTARG` 获取参数值 | getopts = get options，获取命令行“选项” |
+> | `mktemp` | **mk** **temp**（创建临时）| GNU coreutils，创建临时文件/目录 | `-d` 创建临时目录 | mktemp = make temp，创建“临时”资源 |
+> | `trap` | 英文 trap（陷阱）| shell 内置，捕获信号并执行命令 | `EXIT` 伪信号，退出时触发 | trap = trap，设个“陷阱”捕获退出 |
+> | `bash -n` | bash 语法检查 | bash 内置选项，只查语法不执行 | `-n` 语法检查、`-x` 执行跟踪 | bash -n = bash 检查语法，不跑 |
+> | `bash -x` | bash 执行跟踪 | bash 内置选项，每条命令展开后打印 | `-x` 开启跟踪、`PS4` 自定义前缀 | bash -x = bash 跟踪执行，展开过程都看 |
+> | `shellcheck` | **shell** **check**（Shell 检查）| 静态分析工具，检查 shell 脚本常见问题 | 直接跟脚本路径 | shellcheck = shell check，检查 shell 脚本 |
+> | `dos2unix` | **dos** 到 **unix**（行尾转换）| 转换 Windows CRLF 行尾为 Unix LF | 直接跟文件 | dos2unix = DOS 到 Unix，转换行尾格式 |
 
 从其他平台拷来的脚本每行末尾可能多一个 `\r`，bash 把 `#!/bin/bash\r` 当成不存在的解释器，报 `bad interpreter: /bin/bash^M`；更隐蔽的是 `if`/`fi` 因 `\r` 匹配不上而语法错误。排查与修复：
 

@@ -5,6 +5,28 @@
 > 本章目标：能区分 DAC 与 MAC，并说出 AppArmor、SELinux、TOMOYO 的模型差异；会查看/切换 AppArmor profile 状态并用日志定位拒绝；理解 dm-verity（只读哈希树）与 dm-integrity（可写校验）的差别；知道 IMA/EVM、TPM 度量与 Secure Boot 各自解决什么；会用 USBGuard 做设备白名单；能用 nmap/Wireshark/ClamAV 在自己的实验环境做验证；能识别「profile 拒绝导致应用故障」「USBGuard 锁死键鼠」「核心转储泄密」三类问题。
 > 对应 Wiki：[AppArmor](https://wiki.archlinux.org/title/AppArmor)、[SELinux](https://wiki.archlinux.org/title/SELinux)、[TOMOYO](https://wiki.archlinux.org/title/TOMOYO)、[USBGuard](https://wiki.archlinux.org/title/USBGuard)、[ClamAV](https://wiki.archlinux.org/title/ClamAV)、[Wireshark](https://wiki.archlinux.org/title/Wireshark)
 
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `sestatus` | **se** **status**（SELinux 状态）| SELinux 工具，显示当前 SELinux 状态 | 无常用选项 | sestatus = SELinux status，看 SELinux“状态” |
+> | `ls -Z` | **ls** **-Z**（显示安全上下文）| SELinux 扩展，`-Z` 显示安全上下文 | `-R` 递归、`-v` 详细 | ls -Z = ls 显示“-Z”安全上下文 |
+> | `restorecon` | **restore** **con**text（恢复上下文）| SELinux 工具，恢复文件默认安全上下文 | `-R` 递归、`-v` 详细 | restorecon = restore context，恢复安全“上下文” |
+> | `setenforce` | **set** **enforce**（设置强制模式）| SELinux 工具，切换 enforcing/permissive | `0` 宽容、`1` 强制 | setenforce = set enforce，设置 SELinux“强制”模式 |
+> | `audit2why` | **audit** **2** **why**（审计原因）| SELinux 工具，解释拒绝日志的原因 | 从 stdin 读日志 | audit2why = 审计“原因”，解释为什么被拒绝 |
+> | `aa-complain` | **aa** **complain**（AppArmor 宽容模式）| 见第 76 章 | profile 路径 | 见第 76 章 |
+> | `aa-enforce` | **aa** **enforce**（AppArmor 强制模式）| 见第 76 章 | profile 路径 | 见第 76 章 |
+> | `aa-logprof` | **aa** **log** **prof**（日志分析生成规则）| 见第 76 章 | 交互式运行 | 见第 76 章 |
+> | `apparmor_parser` | **apparmor** **parser**（AppArmor 解析器）| 见第 76 章 | `-r` 重新加载、`-R` 移除 | 见第 76 章 |
+> | `veritysetup` | **verity** **setup**（verity 设置）| cryptsetup 附带，管理 dm-verity | `format` 格式化、`verify` 校验 | veritysetup = verity setup，设置 dm-verity |
+> | `cryptsetup` | **crypto** **setup**（加密设置）| 见第 55 章，LUKS 加密管理 | `luksHeaderRestore` 恢复头 | 见第 55 章 |
+> | `usbguard` | **usb** **guard**（USB 防护）| USBGuard 设备白名单工具 | `generate-policy` 生成策略、`list-devices` 列设备、`allow-device` 允许设备 | usbguard = USB guard，守护“USB”接口 |
+> | `clamscan` | **clam** **scan**（反病毒扫描）| 见第 76 章，ClamAV 命令行扫描 | `-r` 递归扫描 | 见第 76 章 |
+> | `freshclam` | **fresh** **clam**（更新病毒库）| 见第 76 章，病毒库更新 | 无常用选项 | 见第 76 章 |
+> | `nmap` | **net** **map**（网络映射）| 见第 76 章 | `-sT` TCP connect、`-p-` 全端口 | 见第 76 章 |
+> | `tshark` | **t**erminal **shark**（终端鲨鱼）| Wireshark 的命令行版本 | `-i` 指定网卡、`-c` 抓包数量 | tshark = terminal shark，终端版 Wireshark |
+> | `coredumpctl` | **core** **dump** **ctl**（核心转储控制）| 见第 76 章 | `list` 列出、`info` 详情 | 见第 76 章 |
+
 ## DAC 与 MAC：从「属主说了算」到「策略说了算」
 
 传统 Unix 权限是 DAC（自主访问控制）：文件属主可以 `chmod`/`chown`，root 几乎不受限制。MAC 在其上再加一层策略：**即使 root，也要符合策略**。三种实现：

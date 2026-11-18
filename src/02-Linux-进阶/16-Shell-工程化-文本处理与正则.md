@@ -5,7 +5,26 @@
 > 本章目标：能为一个多脚本项目划出可维护的目录与入口约定；分清 `grep`/`sed`/`awk`/`find`/`xargs` 各自该干什么、不该干什么；理解 BRE、ERE、PCRE 三种正则方言的差异并知道何时该换工具；掌握「先干跑、再就地改、留备份」的文本修改闭环；能判断什么时候 shell 已经不够、应该改用 Python。
 > 对应 Wiki：[Bash](https://wiki.archlinux.org/title/Bash)、[Core utilities](https://wiki.archlinux.org/title/Core_utilities)、[Grep](https://wiki.archlinux.org/title/Grep)
 
-## 工程化：从「一个 .sh」到「一个能维护的项目」
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `grep` | **g**lobal **r**egular **e**xpression **p**rint | 见第 4 章，来自 ed 的 `g/re/p` | `-c` 计数、`-E` 扩展正则、`-o` 只输出匹配部分 | grep = g/re/p，全局正则打印 |
+> | `sed` | **s**tream **ed**itor（流编辑器）| 见第 4 章 | `-i` 就地修改、`s/旧/新/` 替换、`-E` 扩展正则 | sed = stream editor，流式编辑器 |
+> | `awk` | 作者姓氏缩写（Aho+Weinberger+Kernighan）| 见第 4 章 | `-F` 字段分隔符、`$0` 整行、`$1` `$2` 第几列 | awk = 三位作者姓氏缩写 |
+> | `find` | 英文 find（查找）| 见第 3 章 | `-print0` NUL 分隔、`-delete` 删除、`-exec` 执行命令 | find = find，在目录树里“找”文件 |
+> | `xargs` | **x** **args**（参数展开）| 将 stdin 参数传给另一命令 | `-0` 配合 NUL 分隔、`-r` 无输入不运行 | xargs = x args，把 stdin 变成“参数” |
+> | `sort` | 英文 sort（排序）| 见第 4 章 | `-k` 按列排序、`-nr` 数字倒序、`-u` 去重 | sort = sort，排序 |
+> | `uniq` | **uni**que（唯一/去重）| 见第 4 章 | `-c` 计数、`-d` 只留重复行 | uniq = unique，去重 |
+> | `diff` | 英文 diff（差异）| Unix 第 1 版即有，比较文件差异 | `-u` 统一格式、`-u file.bak file` 对比 | diff = difference，看“差异” |
+> | `git` | 英文 git（英国俚语，愚蠢的人）| 2005 年 Linus Torvalds 开发，分布式版本控制 | `init` 初始化、`add` 暂存、`commit` 提交、`diff` 查看差异、`restore` 恢复 | git = 版本控制，记录“更改” |
+> | `jq` | 英文 jq（JSON 查询）| JSON 处理工具，类似 sed/awk 但针对 JSON | `.field` 取字段、`[]` 数组、过滤表达式 | jq = JSON 查询，处理 JSON 数据 |
+> | `yq` | 英文 yq（YAML 查询）| YAML 处理工具，类似 jq 但针对 YAML | 类似 jq 的表达式 | yq = YAML 查询，处理 YAML 数据 |
+> | `date` | 英文 date（日期）| 见第 14 章 | `-Is` ISO 8601 格式、`+%Y%m%d` 自定义格式 | date = date，显示日期时间 |
+> | `dirname` | **dir** **name**（目录名）| 取路径的目录部分 | 直接跟路径 | dirname = dir name，取目录名 |
+> | `basename` | **base** **name**（基名）| 取路径的文件名部分 | 直接跟路径 | basename = base name，取基名 |
+> | `printf` | **print** **f**ormat（格式化打印）| C 语言 printf 的 shell 版本 | `'%s\n'` 格式化字符串 | printf = print format，按格式打印 |
+> | `command -v` | shell 内置 | 见第 2 章，POSIX 规定 | `-v` 只查不执行 | command -v = 命令查找，只问在哪不跑它 |
 
 单人临时脚本可以只有五行；一旦要被别人调用、被定时任务调用、在另一台机器上跑，就必须固定四样东西。它们不是风格偏好，而是失败时能不能定位的前提：
 

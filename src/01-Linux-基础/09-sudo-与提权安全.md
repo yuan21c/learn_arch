@@ -5,6 +5,14 @@
 > 本章目标：能读懂并编写 sudoers 授权行；会用 `/etc/sudoers.d/` drop-in 与 `visudo -f` 安全修改；掌握 `Defaults`、`Cmnd_Alias` 与 `sudo -u/-i/-l/-k/-v`；知道 `NOPASSWD` 的风险边界与审计入口。
 > 对应 Wiki：[Sudo](https://wiki.archlinux.org/title/Sudo)
 
+> **命令来源（本章新涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `visudo` | **vis**ual **sudo**（编辑 sudoers） | sudo 附带的安全编辑器，专用于 /etc/sudoers，带并发锁与语法检查 | `-f` 指定文件、`-c` 仅语法检查 | visudo = visual sudo，专门用来“可视化”安全编辑 sudoers |
+> | `journalctl` | **journal** + **ctl**（控制） | systemd 附带，查询 systemd 日志 | `-t` 指定标识符、`-n` 行数、`--no-pager` 不分页 | journalctl = journal control，控制 systemd 日志的查询 |
+> | `sudo` | **superuser do**（超级用户执行） | 见第 8 章，1980 年由 Bob Coggeshall 和 Spencer Spangler 开发 | 见第 8 章表格 | 见第 8 章表格 |
+
 ## sudoers 语法：四段 + 可选标签
 
 一条授权行的骨架是「**谁 在哪台机器 =（以谁的身份）标签: 命令**」：

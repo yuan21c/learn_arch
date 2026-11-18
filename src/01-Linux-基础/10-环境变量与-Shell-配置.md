@@ -5,9 +5,24 @@
 > 本章目标：区分 shell 变量与环境变量，会用 `export`、`env`、`printenv`、`unset` 管理并解释作用域；能拆解 `PATH`、用 `type -a`/`command -v`/`hash` 诊断命令查找；能说出 bash 登录式与交互式启动各自读哪些文件并实测验证；掌握 alias 的展开时机与脚本中的限制；知道常用 shell 的差异与切换入口。
 > 对应 Wiki：[Environment variables](https://wiki.archlinux.org/title/Environment_variables)、[Bash](https://wiki.archlinux.org/title/Bash)
 
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `export` | 英文 export（导出） | shell 内置，把 shell 变量提升为环境变量，子进程可继承 | 无常用选项，直接跟变量名 | export = 导出，把变量“导出”给子进程 |
+> | `env` | 英文 env（环境） | GNU coreutils，Unix 第 1 版即有，显示或修改环境 | 无选项列出全部；`env -i` 空环境执行命令 | env = environment，查看/操作“环境” |
+> | `printenv` | **print** **env**（打印环境） | GNU coreutils，打印指定环境变量的值 | 直接跟变量名 | printenv = print env，打印环境变量的值 |
+> | `unset` | 英文 unset（取消设置） | shell 内置，删除变量 | 无常用选项，直接跟变量名 | unset = 取消设置，把变量“unset”掉 |
+> | `type` | shell 内置，无缩写 | bash/zsh 内置，查名字来源 | `-a` 全部匹配、`-P` 外部程序路径、`-t` 类型词 | type = “类型”，问这个名字到底是什么 |
+> | `command -v` | shell 内置，`command` 是运行命令框架 | POSIX 规定，`-v` 只查不执行 | `-v` verbose 查找模式 | command -v = 命令查找，只问在哪不跑它 |
+> | `hash` | 英文 hash（哈希表） | bash 内置，命令查找缓存 | 无参数显示缓存、`-r` 清缓存 | hash = 哈希表，shell 把命令路径“缓存”在这里 |
+> | `source` | 英文 source（来源） | shell 内置，在当前 shell 执行文件 | 直接跟文件名；`. 文件` 是 POSIX 等价写法 | source = source，在当前 shell 里“来源”执行一个文件 |
+> | `alias` | 英文 alias（别名） | shell 内置，给命令起短名 | 无选项，`alias 名='命令'`、`unalias 名` 删除 | alias = 别名，给长命令起一个“别名” |
+> | `chsh` | **ch**ange **sh**ell（改变 shell） | `util-linux` 包，改用户登录 shell | `-s` 指定 shell | chsh = change shell，改登录 shell |
+
 ## 变量、环境与 export
 
-shell 里定义变量写作 `NAME=value`（等号两边都不能有空格），读取写作 `$NAME`。关键在于**作用域**：普通变量只活在当前 shell，`export` 过的变量会进入「环境」，被子进程继承。实跑对照：
+shell 里定义变量写作 `NAME=value`（等号两边都不能有空格），读取写作 `$NAME`。关键在于**作用域**：普通变量只活在当前 shell，`export`（export，导出）是 shell 内置命令，把 shell 变量提升为环境变量，被子进程继承。实跑对照：
 
 ```bash
 export MYVAR=hello

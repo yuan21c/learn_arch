@@ -5,6 +5,16 @@ systemd 是 Arch 的 PID 1，负责启动服务、挂载、定时任务和日志
 > 本章目标：理解 unit 类型与依赖关系，熟练管理服务生命周期，并能用 journalctl 定位一个 failed unit 的根因。
 > 对应 Wiki：[systemd](https://wiki.archlinux.org/title/Systemd)、[systemd/Journal](https://wiki.archlinux.org/title/Systemd/Journal)
 
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `systemd` | **system** **d**（system daemon）| 2010 年由 Lennart Poettering 和 Kay Sievers 开发，PID 1 的 init 系统 | 无常用选项，作为 PID 1 运行 | systemd = system daemon，系统守护进程 |
+> | `systemctl` | **system** **ctl**（系统控制）| systemd 附带，控制 unit 生命周期 | `status` 状态、`start` 启动、`stop` 停止、`restart` 重启、`enable` 开机自启、`disable` 取消、`mask` 禁止、`daemon-reload` 重新加载 | systemctl = system control，控制 systemd |
+> | `journalctl` | **journal** **ctl**（日志控制）| systemd 附带，查询 systemd 日志 | `-b` 本次启动、`-u` 指定服务、`-p` 级别、`-f` 实时跟踪、`--since` 按时间 | journalctl = journal control，控制日志查询 |
+> | `systemd-analyze` | **systemd** **analyze**（分析）| systemd 附带，分析启动性能与 unit 语法 | `verify` 检查 unit 语法、`blame` 看启动耗时 | systemd-analyze = 分析 systemd |
+> | `systemd-delta` | **systemd** **delta**（差异）| 列出被覆盖或扩展的 unit | 无常用选项 | systemd-delta = systemd 差异，看覆盖关系 |
+
 ## systemd 是 PID 1
 
 ```bash

@@ -5,7 +5,24 @@
 > 本章目标：能写出带 shebang、可直接执行的脚本；掌握变量、引号、参数与退出码；会用 `test`/`[[ ]]` 写条件，用 `for`/`while`/`case` 写流程；会定义函数与 `local`；能用 `set -euo pipefail` 与 `trap` 让脚本出错时安全退出；避开词分割、管道子 shell 等常见坑。
 > 对应 Wiki：[Bash](https://wiki.archlinux.org/title/Bash)、[Core utilities](https://wiki.archlinux.org/title/Core_utilities)
 
-## 从命令到脚本
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `source` | 英文 source（来源）| shell 内置，在当前 shell 执行文件 | `. 文件` 是 POSIX 等价写法 | source = source，在当前 shell 里“来源”执行一个文件 |
+> | `export` | 英文 export（导出）| shell 内置，把变量提升为环境变量 | 见第 10 章 | export = 导出，把变量“导出”给子进程 |
+> | `mktemp` | **mk**e **temp**（创建临时文件）| GNU coreutils，创建临时文件/目录 | `-d` 创建临时目录 | mktemp = make temp，创建“临时”资源 |
+> | `trap` | 英文 trap（陷阱/捕获）| shell 内置，捕获信号并执行命令 | `EXIT` 伪信号，在脚本退出时触发 | trap = trap，设个“陷阱”捕获退出信号 |
+> | `shellcheck` | **shell** **check**（Shell 检查）| 静态分析工具，检查 shell 脚本常见问题 | 直接跟脚本路径 | shellcheck = shell check，检查 shell 脚本 |
+> | `curl` | **c**lient **url**（URL 客户端）| 1997 年由 Daniel Stenberg 开发，数据传输工具 | `-fsSL`：失败静默、显示错误、跟随重定向、静默 | curl = client url，客户端工具，传 URL 数据 |
+> | `date` | 英文 date（日期）| Unix 第 1 版即有，GNU coreutils | `+%Y%m%d-%H%M%S` 自定义格式 | date = date，显示/设置日期时间 |
+> | `basename` | **base** **name**（基名）| 去掉目录前缀，只留文件名 | 直接跟路径 | basename = base name，取路径的“基名” |
+> | `dirname` | **dir** **name**（目录名）| 去掉文件名，只留目录部分 | 直接跟路径 | dirname = dir name，取路径的“目录名” |
+> | `printf` | **print** **f**ormat（格式化打印）| C 语言 printf 的 shell 版本，GNU coreutils | `'%s\n'` 格式化字符串 | printf = print format，按格式“打印” |
+> | `cut` | 英文 cut（切割）| 见第 4 章 | `-d` 分隔符、`-f` 字段 | cut = cut，按列“切开”文本 |
+> | `find` | 英文 find（查找）| 见第 3 章 | `-name`、`-type`、`-mtime`、`-delete` | find = find，在目录树里“找”文件 |
+> | `tar` | **t**ape **ar**chive（磁带归档）| Unix 第 7 版（1979），原用于磁带归档 | `-c` 创建、`-x` 解包、`-z` gzip、`-v` 详细、`-f` 指定文件 | tar = tape archive，磁带“归档”，打包文件 |
+> | `xargs` | **x** **args**（参数展开）| 将 stdin 的参数传给另一命令 | `-r` 无输入不运行、`-0` 配合 NUL 分隔 | xargs = x args，把 stdin 变成另一命令的“参数” |
 
 脚本 = 文本文件 + 执行权限 + 一行 shebang。shebang（`#!`）告诉内核用哪个解释器，没有它就只能靠当前 shell 硬跑（`/tmp` 演练）：
 

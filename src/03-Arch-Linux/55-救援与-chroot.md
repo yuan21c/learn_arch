@@ -5,6 +5,31 @@
 > 本章目标：能在 Live 环境中识别并挂载普通分区、LUKS、LVM、RAID 与 btrfs 子卷；用 `arch-chroot` 进入目标系统并确认身份；完成 fstab、initramfs、引导器、包数据库与密码的常见修复；按正确顺序退出与卸载，避免数据未落盘。
 > 对应 Wiki：[Install Arch Linux from existing Linux](https://wiki.archlinux.org/title/Install_Arch_Linux_from_existing_Linux)、[Chroot](https://wiki.archlinux.org/title/Chroot)、[GRUB#Repair](https://wiki.archlinux.org/title/GRUB#Repair)
 
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `arch-chroot` | **arch** **chroot**（Arch 改根）| Arch Linux 专用，封装了挂载 API 文件系统与 chroot | 跟目标根目录，如 `arch-chroot /mnt` | arch-chroot = Arch 专用的 chroot，改根到目标系统 |
+> | `chroot` | **ch**ange **root**（改根）| Unix 第 7 版（1979），改变根目录 | 直接跟目标根和要运行的命令 | chroot = change root，改“根”目录 |
+> | `cryptsetup` | **crypto** **setup**（加密设置）| LUKS 磁盘加密管理工具 | `open` 解锁、`close` 关闭映射 | cryptsetup = crypto setup，设置“加密”设备 |
+> | `vgchange` | **vg** **change**（卷组变更）| LVM 工具，激活/停用卷组 | `-ay` 激活所有、`-an` 停用所有 | vgchange = change volume group，改“卷组”状态 |
+> | `mdadm` | **md** **adm**in（多磁盘管理）| Linux 软件 RAID 管理工具 | `--assemble --scan` 组装阵列 | mdadm = md admin，管理“多磁盘”阵列 |
+> | `mkinitcpio` | **mk** **initramfs** **cpio**（制作 initramfs）| Arch 专用，生成 initramfs 镜像 | `-P` 为所有内核重建 | mkinitcpio = make initramfs cpio，“制作”initramfs |
+> | `grub-install` | **grub** **install**（安装 GRUB）| GNU GRUB 引导器安装工具 | `--target` 目标平台、`--efi-directory` ESP 目录、`--bootloader-id` 标识符 | grub-install = 安装 GRUB 引导器 |
+> | `bootctl` | **boot** **ctl**（引导控制）| systemd-boot 的控制工具 | `install` 安装引导器 | bootctl = boot control，控制引导 |
+> | `efibootmgr` | **efi** **boot** **mgr**（EFI 引导管理）| UEFI 引导项管理工具 | `-v` 详细显示 | efibootmgr = EFI boot manager，管理 UEFI 引导项 |
+> | `fuser` | **f**ile **user**（文件用户）| 显示占用文件的进程 | `-vm /mnt` 显示占用挂载点的进程 | fuser = file user，看“文件”被哪个用户/进程占用 |
+> | `e2fsck` | **e2** **fsck**（ext2/3/4 检查）| ext 文件系统检查工具 | `-f` 强制检查、`-n` 只读模式 | e2fsck = ext2 fsck，检查 ext 文件系统 |
+> | `xfs_repair` | **xfs** **repair**（XFS 修复）| XFS 文件系统修复工具 | `-n` 只读检查 | xfs_repair = xfs repair，修复 XFS 文件系统 |
+> | `lsblk` | **ls bl**ock（块设备列表）| 见第 5 章，util-linux 包 | `-f` 显示文件系统类型 | 见第 5 章 |
+> | `blkid` | **blk** **id**（块设备标识）| 见第 18 章，util-linux 包 | 直接跟设备名 | 见第 18 章 |
+> | `findmnt` | **find mount**（查找挂载）| 见第 5 章，util-linux 包 | `-T` 目标路径、`-R` 递归显示 | 见第 5 章 |
+> | `mkfs` | **mk** **fs**（make file system）| 见第 18 章，格式化文件系统 | 直接跟设备名 | 见第 18 章 |
+> | `mount` | 英文 mount（挂载）| 见第 18 章，util-linux 包 | `--mkdir` 自动创建挂载点、`--bind` 绑定挂载 | 见第 18 章 |
+> | `umount` | 英文 umount（卸载）| 见第 18 章，util-linux 包 | `-R` 递归卸载 | 见第 18 章 |
+> | `passwd` | 英文 passwd（口令）| 见第 8 章，shadow 包 | 直接跟用户名，改目标系统密码 | 见第 8 章 |
+> | `pacman` | **pack** **man**ager（包管理器）| 见第 41 章 | `-Q` 查询、`-Dk` 数据库校验 | 见第 41 章 |
+
 ## 什么时候需要救援
 
 以下症状通常值得进 Live 环境，而不是在故障系统里反复尝试：

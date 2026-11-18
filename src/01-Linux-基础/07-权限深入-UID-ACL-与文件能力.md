@@ -5,6 +5,19 @@
 > 本章目标：能区分 real/effective/saved UID 并解释提权工具的原理；知道脚本 SUID 无效与 `nosuid` 挂载的作用；会用 `getcap/setcap` 管理文件能力；掌握 ACL 的按名授权、mask、默认 ACL 继承与清理。
 > 对应 Wiki：[File permissions and attributes](https://wiki.archlinux.org/title/File_permissions_and_attributes)、[Access Control Lists](https://wiki.archlinux.org/title/Access_Control_Lists)、[Capabilities](https://wiki.archlinux.org/title/Capabilities)
 
+> **命令来源（本章涉及的命令）**
+> 
+> | 命令 | 是什么简写 | 由什么命令/机制发展而来 | 参数/选项来源 | 如何记忆 |
+> |------|------------|------------------------|---------------|----------|
+> | `getcap` | **get capability**（获取能力） | Linux 2.6 引入 file capabilities，由 libcap 包提供 | 无常用选项，直接跟文件名；`-r` 递归 | getcap = get capability，读取文件的“能力” |
+> | `setcap` | **set capability**（设置能力） | 同上，给文件授予单点能力 | `cap_xxx=+ep`（effective/permitted）、`-r` 移除 | setcap = set capability，给文件“设置”能力 |
+> | `setfacl` | **set file ACL**（设置文件 ACL） | ACL 机制源自 POSIX 1003.1e 扩展，Linux 由 `acl` 包提供 | `-m` modify（修改/添加条目）、`-x` remove（删除条目）、`-b` remove all（全部清除）、`-k` 删除默认 ACL、`-d` 默认 ACL、`-R` 递归 | setfacl = set file ACL，给文件“设置”访问控制列表 |
+> | `getfacl` | **get file ACL**（获取文件 ACL） | 同上 | 无常用选项，直接跟文件名；`-p` 保留路径格式 | getfacl = get file ACL，读取文件的 ACL 条目 |
+> | `chattr` | **change attribute**（改变属性） | ext2/ext3/ext4 文件系统层属性，由 `e2fsprogs` 包提供 | `+i` 不可变、`+a` 只追加、`+C` 关 COW、`-i` 解除 | chattr = change attribute，改文件系统“属性” |
+> | `lsattr` | **ls attribute**（列出属性） | 同上，配合 chattr 使用 | 无常用选项，直接跟文件名 | lsattr = ls attribute，像 ls 一样列出文件属性 |
+> | `namei` | **name i**node（路径名到 inode） | util-linux 包，逐级解析路径 | `-l` 详细模式，显示每层权限 | namei = name to inode，把路径名“翻译”成 inode，逐级看权限 |
+> | `getfattr` | **get file attribute**（获取扩展属性） | 扩展属性（xattr）机制，由 `attr` 包提供 | `-d` 显示所有用户属性 | getfattr = get file attribute，读取扩展属性 |
+
 ## 三个 UID：real、effective、saved
 
 一个进程不是「一个身份」，而是三个：**real UID**（谁启动的）、**effective UID**（此刻以谁的权限干活）、**saved UID**（之前的有效身份，供回落）。内核判权限看的是 effective；`ps` 的 `USER`/`UID` 列默认显示的也是 effective（要看 real 用 `ps -o ruid=`），审计日志则另外记录登录身份 `auid`。看自己的三元组：
@@ -33,7 +46,11 @@ ls -l /tmp/suid.sh # -rwsr-xr-x（位还在，但不起作用）
 
 ## file capabilities：SUID 的精细替代
 
-Capabilities 把「root 无所不能」拆成单点能力（`cap_setuid`、`cap_net_bind_service`、`cap_sys_admin`……），程序只带需要的几块：
+`getcap`（get capability，获取能力）与 `setcap`（set capability，设置能力）来自 libcap 包，用于管理 Linux file capabilities。Capabilities 把「root 无所不能」拆成单点能力（`cap_setuid`、`cap_net_bind_service`、`cap_sys_admin`……），程序只带需要的几块：
+
+选项来源：`getcap` 直接跟文件名，`-r` 递归；`setcap` 用 `cap_xxx=+ep`（effective/permitted）授予，`-r` 移除。
+
+记忆：getcap = get capability，读取文件的“能力”；setcap = set capability，给文件“设置”能力。
 
 ```bash
 # 需 sudo；setcap/getcap 来自 libcap 包
@@ -48,7 +65,11 @@ sudo setcap -r /usr/local/bin/myserver # 清除
 
 ## ACL：按名字授权的完整图景
 
-ugo 之外，ACL 给文件挂一张按名字的授权表，`ls -l` 权限位后的 `+` 是它的存在标志。`setfacl -m u:nobody:r acl.txt` 之后 `getfacl` 显示 `user:nobody:r--` 条目；`-m g:组:权限` 加组条目，`-x u:名` 删单条。三条进阶规则决定最终效果：
+`setfacl`（set file ACL，设置文件 ACL）与 `getfacl`（get file ACL，获取文件 ACL）来自 `acl` 包。ACL 机制源自 POSIX 1003.1e 扩展标准，Linux 内核对其支持逐步完善。ugo 之外，ACL 给文件挂一张按名字的授权表，`ls -l` 权限位后的 `+` 是它的存在标志。选项来源：`setfacl` 的 `-m` = modify（修改/添加条目）、`-x` = remove（删除单条）、`-b` = remove all（全部清除）、`-k` = 删除默认 ACL、`-d` = 默认 ACL、`-R` = 递归；`getfacl` 直接跟文件名，`-p` 保留路径格式。
+
+记忆：setfacl = set file ACL，给文件“设置”访问控制列表；getfacl = get file ACL，读取文件的 ACL 条目。
+
+`setfacl -m u:nobody:r acl.txt` 之后 `getfacl` 显示 `user:nobody:r--` 条目；`-m g:组:权限` 加组条目，`-x u:名` 删单条。三条进阶规则决定最终效果：
 
 - **mask 是上限**：除属主与 other 外，一切条目（具名用户、具名组、属组）的有效权限都被压到 mask 之内，`getfacl` 用 `#effective:` 标注实际值。改大授权后务必看 mask。
 - **默认 ACL 让子条目自动继承**：`setfacl -d -m g:wheel:rwx 目录` 后其中新建文件自带 wheel 条目。**目录有默认 ACL 时 umask 不参与**——继承的 ACL 与创建时的 mode 共同决定权限，umask 022 与 077 下新建文件的 `getfacl` 输出可以逐行相同。
@@ -66,7 +87,11 @@ setfacl -b acl.txt # 全部清理
 
 ## 文件属性：rwx 之外的开关
 
-文件系统层还有一组与 rwx 正交的属性位，`lsattr` 查看、`chattr` 修改（需要 root，且依赖文件系统支持）：
+`chattr`（change attribute，改变属性）与 `lsattr`（ls attribute，列出属性）来自 `e2fsprogs` 包，用于管理 ext2/ext3/ext4 文件系统层属性位（需要 root，且依赖文件系统支持）。选项来源：`chattr` 的 `+i` 不可变、`+a` 只追加、`+C` 关 COW，`-i` 解除属性；`lsattr` 直接跟文件名。
+
+记忆：chattr = change attribute，改文件系统“属性”；lsattr = ls attribute，像 ls 一样列出文件属性。
+
+文件系统层还有一组与 rwx 正交的属性位：
 
 | 属性 | 作用 | 典型场景 |
 | ----------- | -------------------------------------- | ---------------------------------------- |
@@ -81,6 +106,10 @@ sudo chattr +i attr.txt && lsattr attr.txt # 显示 ----i----
 echo more >> attr.txt # Operation not permitted
 sudo chattr -i attr.txt # 解除后可继续写
 ```
+
+`namei`（name to inode，路径名到 inode）属于 util-linux 包，逐级解析路径并显示每层权限，适合排查「目录缺 x 位导致进不去」的问题。选项来源：`-l` 详细模式，显示每层权限。记忆：namei = name to inode，把路径名“翻译”成 inode，逐级看权限。
+
+`getfattr`（get file attribute，获取扩展属性）来自 `attr` 包，读取扩展属性（xattr，如 ACL、SELinux 标签、文件能力等存储位置）。选项来源：`-d` 显示所有用户属性。记忆：getfattr = get file attribute，读取扩展属性。
 
 属性位是「连 root 也管住」的最后一层，排查「root 删不掉文件」时先 `lsattr`。
 
