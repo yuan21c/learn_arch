@@ -2,9 +2,9 @@
   'use strict';
 
   const STORAGE_KEY = 'arch-handbook-reading-progress';
-  const JUMP_FLAG = 'arch-handbook-auto-jump';
+  const RESTORED_KEY = 'arch-handbook-restored';      // 冷启动恢复已执行过，后续不再自动定位
+  const PENDING_RESTORE_KEY = 'arch-handbook-pending-restore'; // 自动跳转后待恢复滚动
 
-  // 读取本地存储的阅读进度，失败则静默忽略。
   function loadProgress() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -14,7 +14,6 @@
     }
   }
 
-  // 把当前页面相对路径 + hash + 滚动位置写入 localStorage（覆盖旧值，只保留最后一条）。
   function save() {
     const data = {
       url: location.pathname + location.hash,
@@ -28,42 +27,50 @@
     }
   }
 
-  // 是否正在执行自动跳转：true 时 beforeunload 不再覆盖 localStorage，避免跳转循环。
-  let isAutoJumping = false;
-
-  // 冷启动后恢复一次：
-  // - 若当前页面正是上次阅读的章节（url 完全一致），则回到上次滚动位置；
-  // - 若当前页面不是（例如打开的是默认页），则自动导航到上次阅读的章节（仅跳转一次）。
-  // 手动切换页面后，新页面加载时 url 会匹配，从而恢复该页面的滚动位置；
-  // 阅读过程中用户的手动滚动与切换不再触发基于阅读进度的自动定位。
   function restoreOnColdStart() {
+    const alreadyRestored = sessionStorage.getItem(RESTORED_KEY) === '1';
+    const pendingRestore = sessionStorage.getItem(PENDING_RESTORE_KEY) === '1';
+
     const stored = loadProgress();
     if (!stored || !stored.url) {
+      if (!alreadyRestored) {
+        sessionStorage.setItem(RESTORED_KEY, '1');
+      }
       return;
     }
 
-    // 若本次加载是由自动跳转造成的，清除标记，只做滚动恢复，不再尝试跳转。
-    const isAutoJump = sessionStorage.getItem(JUMP_FLAG) === '1';
-    if (isAutoJump) {
-      sessionStorage.removeItem(JUMP_FLAG);
+    const currentUrl = location.pathname + location.hash;
+
+    // 自动跳转后到达目标页面：恢复滚动，标记已恢复，之后不再自动定位
+    if (pendingRestore) {
+      sessionStorage.removeItem(PENDING_RESTORE_KEY);
+      if (!alreadyRestored) {
+        sessionStorage.setItem(RESTORED_KEY, '1');
+      }
+      if (stored.url === currentUrl && typeof stored.scrollTop === 'number') {
+        window.scrollTo(0, stored.scrollTop);
+      }
+      return;
     }
 
-    const currentUrl = location.pathname + location.hash;
+    // 冷启动后的后续页面加载：永远不再自动定位
+    if (alreadyRestored) {
+      return;
+    }
+
+    // 第一次冷启动
     if (stored.url === currentUrl) {
       if (typeof stored.scrollTop === 'number') {
         window.scrollTo(0, stored.scrollTop);
       }
-    } else if (!isAutoJump) {
-      // 标记本次跳转为自动跳转，并在 beforeunload 中跳过保存，
-      // 防止跳转源页面的 beforeunload 把 url 覆盖为当前页面，导致无限循环。
-      isAutoJumping = true;
-      sessionStorage.setItem(JUMP_FLAG, '1');
+      sessionStorage.setItem(RESTORED_KEY, '1');
+    } else {
+      // 需要跳转到存档页面：仅跳转一次，跳转后页面加载时走 pendingRestore 分支恢复滚动
+      sessionStorage.setItem(PENDING_RESTORE_KEY, '1');
       location.href = stored.url;
     }
-    // 若 isAutoJump 且 url 仍不匹配：什么都不做，循环已停止。
   }
 
-  // 滚动节流：每帧至多写入一次。
   let ticking = false;
   function onScroll() {
     if (!ticking) {
@@ -75,18 +82,16 @@
     }
   }
 
-  // 冷启动后恢复一次。
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', restoreOnColdStart, { once: true });
   } else {
     restoreOnColdStart();
   }
 
-  // 持续记录滚动位置；退出前再保一次，确保下次冷启动能恢复到最后位置。
-  // 自动跳转时跳过保存，避免把跳转源页面的 url 写入存档，导致跳转循环。
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('beforeunload', function () {
-    if (isAutoJumping) {
+    // 自动跳转时跳过保存，避免把跳转源页面的 url 写入存档，导致下次加载时匹配错误
+    if (sessionStorage.getItem(PENDING_RESTORE_KEY) === '1') {
       return;
     }
     save();
