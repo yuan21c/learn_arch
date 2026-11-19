@@ -1,4 +1,4 @@
-const CACHE_NAME = "arch-handbook-v1";
+const CACHE_NAME = "arch-handbook-v2";
 const CORE_URLS = [
   "./",
   "./index.html",

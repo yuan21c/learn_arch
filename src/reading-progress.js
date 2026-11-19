@@ -3,23 +3,13 @@
 
   const STORAGE_KEY = 'arch-handbook-reading-progress';
 
-  // 只有当 url（相对路径 + hash）完全一致时，才恢复滚动；冷启动时执行一次。
-  function restoreOnColdStart() {
-    let stored;
+  // 读取本地存储的阅读进度，失败则静默忽略。
+  function loadProgress() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      stored = raw ? JSON.parse(raw) : null;
+      return raw ? JSON.parse(raw) : null;
     } catch (e) {
-      stored = null;
-    }
-
-    if (!stored || !stored.url) {
-      return;
-    }
-
-    const currentUrl = location.pathname + location.hash;
-    if (stored.url === currentUrl && typeof stored.scrollTop === 'number') {
-      window.scrollTo(0, stored.scrollTop);
+      return null;
     }
   }
 
@@ -34,6 +24,27 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
       // 配额超限 / 无痿 / 私密模式等：静默忽略，不阻塞页面。
+    }
+  }
+
+  // 冷启动后恢复一次：
+  // - 若当前页面正是上次阅读的章节（url 完全一致），则回到上次滚动位置；
+  // - 若当前页面不是（例如打开的是默认页），则自动导航到上次阅读的章节。
+  // 手动切换页面后，新页面加载时 url 会匹配，从而恢复该页面的滚动位置；
+  // 阅读过程中用户的手动滚动与切换不再触发基于阅读进度的自动定位。
+  function restoreOnColdStart() {
+    const stored = loadProgress();
+    if (!stored || !stored.url) {
+      return;
+    }
+
+    const currentUrl = location.pathname + location.hash;
+    if (stored.url === currentUrl) {
+      if (typeof stored.scrollTop === 'number') {
+        window.scrollTo(0, stored.scrollTop);
+      }
+    } else {
+      location.href = stored.url;
     }
   }
 
