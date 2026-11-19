@@ -2,8 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'arch-handbook-reading-progress';
-  const RESTORED_KEY = 'arch-handbook-restored';      // 冷启动恢复已执行过，后续不再自动定位
-  const PENDING_RESTORE_KEY = 'arch-handbook-pending-restore'; // 自动跳转后待恢复滚动
+  const RESTORED_KEY = 'arch-handbook-restored'; // 冷启动恢复已执行过，后续不再自动定位
 
   function loadProgress() {
     try {
@@ -29,45 +28,28 @@
 
   function restoreOnColdStart() {
     const alreadyRestored = sessionStorage.getItem(RESTORED_KEY) === '1';
-    const pendingRestore = sessionStorage.getItem(PENDING_RESTORE_KEY) === '1';
+    if (alreadyRestored) {
+      // 已在本次标签页生命周期内恢复过，永不再自动定位
+      return;
+    }
 
     const stored = loadProgress();
     if (!stored || !stored.url) {
-      if (!alreadyRestored) {
-        sessionStorage.setItem(RESTORED_KEY, '1');
-      }
+      sessionStorage.setItem(RESTORED_KEY, '1');
       return;
     }
 
     const currentUrl = location.pathname + location.hash;
-
-    // 自动跳转后到达目标页面：恢复滚动，标记已恢复，之后不再自动定位
-    if (pendingRestore) {
-      sessionStorage.removeItem(PENDING_RESTORE_KEY);
-      if (!alreadyRestored) {
-        sessionStorage.setItem(RESTORED_KEY, '1');
-      }
-      if (stored.url === currentUrl && typeof stored.scrollTop === 'number') {
-        window.scrollTo(0, stored.scrollTop);
-      }
-      return;
-    }
-
-    // 冷启动后的后续页面加载：永远不再自动定位
-    if (alreadyRestored) {
-      return;
-    }
-
-    // 第一次冷启动
     if (stored.url === currentUrl) {
+      // 同一页：直接滚动到存档位置
       if (typeof stored.scrollTop === 'number') {
         window.scrollTo(0, stored.scrollTop);
       }
       sessionStorage.setItem(RESTORED_KEY, '1');
     } else {
-      // 需要跳转到存档页面：仅跳转一次，跳转后页面加载时走 pendingRestore 分支恢复滚动
-      sessionStorage.setItem(PENDING_RESTORE_KEY, '1');
-      location.href = stored.url;
+      // 不同页：replace 到存档页，不在这里设置 restored，
+      // 让目标页面自己进入冷启动逻辑并完成滚动恢复
+      location.replace(stored.url);
     }
   }
 
@@ -90,8 +72,9 @@
 
   window.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('beforeunload', function () {
-    // 自动跳转时跳过保存，避免把跳转源页面的 url 写入存档，导致下次加载时匹配错误
-    if (sessionStorage.getItem(PENDING_RESTORE_KEY) === '1') {
+    // 冷启动期间（restored !== '1'），抑制 save()，
+    // 避免把跳转源页面的 url 写入存档，导致下次冷启动匹配错误
+    if (sessionStorage.getItem(RESTORED_KEY) !== '1') {
       return;
     }
     save();
