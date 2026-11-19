@@ -24,6 +24,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>`;
+  const readingProgressScript = `<script src="${rel}reading-progress.js"></script>`;
 
   let result = html;
 
@@ -37,12 +38,12 @@ if ("serviceWorker" in navigator) {
     }
   }
 
-  // 插入 SW 注册脚本：优先放在 </body> 前，否则放在 </html> 前
+  // 插入 SW 注册脚本与 reading-progress.js：优先放在 </body> 前，否则放在 </html> 前
   const swMarker = result.includes("</body>") ? "</body>" : "</html>";
   if (result.includes(swMarker)) {
-    result = result.replace(swMarker, swScript + "\n" + swMarker);
+    result = result.replace(swMarker, readingProgressScript + "\n" + swScript + "\n" + swMarker);
   } else {
-    result = result + "\n" + swScript;
+    result = result + "\n" + readingProgressScript + "\n" + swScript;
   }
 
   return result;
@@ -75,6 +76,7 @@ function main() {
   // 1. 复制 PWA 文件到 book/
   copyFile(path.join(SRC_DIR, "manifest.json"), path.join(BOOK_DIR, "manifest.json"));
   copyFile(path.join(SRC_DIR, "sw.js"), path.join(BOOK_DIR, "sw.js"));
+  copyFile(path.join(SRC_DIR, "reading-progress.js"), path.join(BOOK_DIR, "reading-progress.js"));
   copyRecursive(path.join(SRC_DIR, "icons"), path.join(BOOK_DIR, "icons"));
 
   // 2. 遍历 book/ 下所有 HTML，注入 manifest 与 SW
@@ -97,7 +99,7 @@ function main() {
   }
   walk(BOOK_DIR);
 
-  console.log(`[pwa-inject] 完成：复制 manifest/sw/icons，已注入 ${count} 个 HTML 页面。`);
+  console.log(`[pwa-inject] 完成：复制 manifest/sw/reading-progress.js/icons，已注入 ${count} 个 HTML 页面。`);
 }
 
 main();
